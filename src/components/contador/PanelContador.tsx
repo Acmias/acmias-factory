@@ -495,6 +495,7 @@ function Ajustes({ slug, config, estado, actualizar }: Props & { slug: string })
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
             <button type="submit" className="d-btn prim">Guardar ajustes</button>
             <button type="button" className="d-btn" onClick={() => { if (window.confirm('¿Volver a los datos de ejemplo? Se pierden los cambios y los clientes importados.')) { reiniciarDatos(slug, config.moneda, 'contador'); setMsg('El estudio volvió a los datos de ejemplo.'); } }}>Volver a los datos de ejemplo</button>
+            <button type="button" className="d-btn" onClick={() => { if (window.confirm('¿Empezar con la cartera vacía? Se borran todos los clientes, cuotas, tareas y accesos de este estudio. Después importá tu planilla.')) { const err = actualizar((x) => ({ ...x, clientes: [], cuotas: [], tareas: [], accesos: [] })); setMsg(err ?? 'La cartera quedó vacía. Ahora importá tu planilla desde la pestaña Importar.'); } }}>Empezar con la cartera vacía</button>
           </div>
           {msg && <p role="status" style={{ margin: 0, fontSize: 14 }}>{msg}</p>}
         </form>

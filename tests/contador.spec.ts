@@ -141,6 +141,30 @@ test('importación masiva: 280 clientes desde la planilla, sin duplicar los que 
   await expect(page.locator('.ct-tabla tbody tr').first()).toContainText('25.000');
 });
 
+test('cartera vacía: se quitan los clientes de ejemplo y se importa solo la planilla propia', async ({ page }) => {
+  const slug = await crearDemo(page);
+  await page.goto(`/d/${slug}/panel`);
+  await page.getByRole('tab', { name: 'Ajustes' }).click();
+  page.once('dialog', (d) => d.accept());
+  await page.getByRole('button', { name: 'Empezar con la cartera vacía' }).click();
+  await expect(page.getByRole('status').filter({ hasText: 'La cartera quedó vacía' })).toBeVisible();
+  await expect(page.getByRole('tab', { name: 'Clientes (0)' })).toBeVisible();
+  await page.getByRole('tab', { name: 'Tablero' }).click();
+  await expect(page.locator('main')).not.toContainText('NaN');
+
+  // CUIT y un solo nombre por fila, como suele venir el listado del estudio (datos ficticios).
+  const propia = join(tmpdir(), `propia-${Date.now()}.csv`);
+  writeFileSync(propia, 'CUIT;Nombre\n20111111112;Prueba\n27222222223;Juan Manuel\n20333333334;Otro\n');
+  await page.getByRole('tab', { name: 'Importar' }).click();
+  await page.getByLabel('Elegir planilla de clientes').setInputFiles(propia);
+  await expect(page.locator('.met').filter({ hasText: 'Clientes leídos' })).toContainText('3');
+  await page.getByRole('button', { name: 'Importar 3 clientes' }).click();
+  await page.getByRole('tab', { name: 'Clientes (3)' }).click();
+  await expect(page.locator('main')).toContainText('Juan Manuel');
+  await expect(page.locator('main')).toContainText('27222222223');
+  await expect(page.locator('main')).not.toContainText('NaN');
+});
+
 test('deudas: recordatorio con el detalle de meses y "recordar al siguiente"', async ({ page }) => {
   const slug = await crearDemo(page);
   await page.goto(`/d/${slug}/panel`);
