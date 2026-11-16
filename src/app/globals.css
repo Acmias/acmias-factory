@@ -1587,7 +1587,7 @@ button { cursor: pointer; }
 .un-pinterest { display: grid; gap: 10px; padding: 14px; border-radius: 16px; background: #fff; border: 1px solid var(--bar-linea); }
 .un-pinterest label { display: grid; gap: 6px; font-weight: 700; }
 .un-captura-fila { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
-.un-subir { cursor: pointer; }
+.un-subir { cursor: pointer; display: inline-flex; flex-direction: row; align-items: center; gap: 8px; }
 .un-subir:focus-within { outline: 2px solid var(--c-marca-texto); outline-offset: 2px; }
 .un-captura { display: block; max-width: 220px; max-height: 280px; border-radius: 12px; object-fit: cover; border: 1px solid var(--bar-linea); }
 .un-captura.mini { max-width: 84px; max-height: 110px; }
