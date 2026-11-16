@@ -1,6 +1,8 @@
 import { formatoPrecio, soloDigitos } from '@/lib/utiles';
 import { DIA_MS, candidatosEspera, claveDia, hora, inicioDia, libre, lunesDe, nombreDia, ocupacion, sumarDias } from './agenda';
 import type { Cliente, EnEspera, EstadoAgenda, Servicio, Turno } from './tipos';
+import type { EleccionDiseno } from '@/lib/rubros/unas/tipos';
+import { eligioAlgo, extraDe, resumenDiseno } from '@/lib/rubros/unas/logica';
 
 const id = () => Math.random().toString(36).slice(2, 9);
 const token = () => Math.random().toString(36).slice(2, 10) + Math.random().toString(36).slice(2, 6);
@@ -21,6 +23,8 @@ export interface NuevaReserva {
   afiliado?: string;
   modalidad?: Turno['modalidad'];
   sobreturno?: boolean;
+  /** Uñas: diseño ya validado con limpiarEleccion. */
+  diseno?: EleccionDiseno;
 }
 
 /** Crea el turno (y el cliente si es nuevo). Devuelve error en texto o el estado nuevo y el turno. */
@@ -54,6 +58,7 @@ export function reservar(e: EstadoAgenda, r: NuevaReserva): { error: string } | 
     ...(r.cobertura ? { cobertura: r.cobertura } : {}),
     ...(r.modalidad ? { modalidad: r.modalidad } : {}),
     ...(r.sobreturno ? { sobreturno: true } : {}),
+    ...(r.diseno && eligioAlgo(r.diseno) ? { diseno: r.diseno } : {}),
   };
   return { estado: { ...e, clientes, turnos: [...e.turnos, turno] }, turno };
 }
@@ -145,8 +150,13 @@ export function mensajeConfirmacion(e: EstadoAgenda, t: Turno, c: Cliente, ctx: 
   const s = e.servicios.find((x) => x.id === t.servicioId);
   const lineas = [
     `Hola ${c.nombre.split(' ')[0]}, te esperamos en ${ctx.negocio}.`,
-    `✂️ ${lineaTurno(e, t)}.`,
+    `${e.rubro === 'unas' ? '💅' : '✂️'} ${lineaTurno(e, t)}.`,
   ];
+  if (e.rubro === 'unas') {
+    lineas.push(`🎨 Diseño: ${resumenDiseno(e, t.diseno)}.`);
+    const extra = extraDe(e, t.diseno);
+    if (extra) lineas.push(`Nail art: ${formatoPrecio(extra, ctx.moneda)} aparte del servicio.`);
+  }
   if (s?.sena) lineas.push(`Este servicio lleva una seña de ${formatoPrecio(montoSena(s), ctx.moneda)} para reservar el lugar.`);
   if (ctx.direccion) lineas.push(`📍 ${ctx.direccion}`);
   if (ctx.enlaceTurno) lineas.push('', `Confirmá, cambiá o cancelá acá: ${ctx.enlaceTurno}`);
@@ -171,6 +181,7 @@ export function mensajeRecordatorio(e: EstadoAgenda, t: Turno, c: Cliente, ctx: 
 /** Lo que el cliente le manda al local al terminar la reserva. */
 export function mensajeAlLocal(e: EstadoAgenda, t: Turno, c: Cliente, ctx: Ctx) {
   if (e.rubro === 'consultorio') return `Hola ${ctx.negocio}, soy ${c.nombre}. Reservé un turno para ${cuandoNeutro(t)}.`;
+  if (e.rubro === 'unas') return `Hola ${ctx.negocio}, soy ${c.nombre}. Reservé ${lineaTurno(e, t)}. Diseño: ${resumenDiseno(e, t.diseno)}.`;
   return `Hola ${ctx.negocio}, soy ${c.nombre}. Reservé ${lineaTurno(e, t)}.`;
 }
 
@@ -201,7 +212,7 @@ export function metricas(e: EstadoAgenda, ahora = Date.now()) {
   }
   const ingresos = conCita
     .filter((t) => t.estado === 'atendido')
-    .reduce((s, t) => s + (e.servicios.find((x) => x.id === t.servicioId)?.precio ?? 0), 0);
+    .reduce((s, t) => s + (e.servicios.find((x) => x.id === t.servicioId)?.precio ?? 0) + (e.rubro === 'unas' ? extraDe(e, t.diseno) : 0), 0);
   const porServicio = e.servicios
     .map((s) => ({ s, n: conCita.filter((t) => t.servicioId === s.id && t.estado === 'atendido').length }))
     .sort((a, b) => b.n - a.n);

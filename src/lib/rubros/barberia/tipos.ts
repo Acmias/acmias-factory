@@ -1,5 +1,7 @@
+import type { Diseno, EleccionDiseno } from '@/lib/rubros/unas/tipos';
+
 /**
- * Agenda de turnos (BRD 04). Genérica: la reutiliza el consultorio (sin datos clínicos).
+ * Agenda de turnos (BRD 04). Genérica: la reutilizan el consultorio (sin datos clínicos) y uñas (BRD 13).
  * Fechas en ISO local del dispositivo; minutos desde medianoche para horarios.
  */
 
@@ -14,6 +16,8 @@ export interface Servicio {
   foto?: string;
   /** Consultorio: se puede hacer por video. */
   video?: boolean;
+  /** Uñas: la clienta elige diseño para este servicio. */
+  diseno?: boolean;
 }
 
 export interface Profesional {
@@ -45,6 +49,8 @@ export interface Turno {
   sobreturno?: boolean;
   cobertura?: string;
   modalidad?: 'presencial' | 'video';
+  /** Uñas: el diseño que eligió la clienta queda guardado en la cita. */
+  diseno?: EleccionDiseno;
   ejemplo?: boolean;
 }
 
@@ -95,7 +101,7 @@ export interface Evento {
 
 export interface EstadoAgenda {
   version: number;
-  rubro: 'barberia' | 'consultorio';
+  rubro: 'barberia' | 'consultorio' | 'unas';
   servicios: Servicio[];
   profesionales: Profesional[];
   turnos: Turno[];
@@ -114,4 +120,6 @@ export interface EstadoAgenda {
   coberturas?: string[];
   /** Consultorio: registro de accesos a fichas (CON-12). */
   eventos?: Evento[];
+  /** Uñas: catálogo de diseños (de cada manicurista y del equipo). */
+  disenos?: Diseno[];
 }

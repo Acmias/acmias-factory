@@ -9,12 +9,17 @@ import { NOMBRE_ESTADO, abierto, claveDia, deClave, diaCorto, hora, huecos, inic
 import { cambiarEstado, reprogramar } from '@/lib/rubros/barberia/logica';
 import type { EnEspera } from '@/lib/rubros/barberia/tipos';
 import { useAhora, useDemoBarberia } from './useBarberia';
+import { cambiarDiseno, precioCita } from '@/lib/rubros/unas/logica';
+import type { EleccionDiseno } from '@/lib/rubros/unas/tipos';
+import { DisenoDeLaCita } from '@/components/unas/DisenoCita';
+import { ElegirDiseno } from '@/components/unas/ReservaUnas';
 
 /** Enlace del WhatsApp de confirmación: confirmar, reprogramar o cancelar sin llamar (BAR-05, BAR-06, BAR-07). */
 export function GestionTurno({ slug, token }: { slug: string; token: string }) {
   const { config, estado, actualizar, estilo, listo } = useDemoBarberia(slug);
   const ahora = useAhora();
-  const [modo, setModo] = useState<'ver' | 'mover' | 'cancelar'>('ver');
+  const [modo, setModo] = useState<'ver' | 'mover' | 'cancelar' | 'diseno'>('ver');
+  const [borrador, setBorrador] = useState<EleccionDiseno>({});
   const [dia, setDia] = useState<string | null>(null);
   const [aviso, setAviso] = useState<{ texto: string; avisados?: EnEspera[] } | null>(null);
   const turno = estado?.turnos.find((t) => t.token === token);
@@ -64,10 +69,44 @@ export function GestionTurno({ slug, token }: { slug: string; token: string }) {
           <div>
             <strong>{servicio.nombre}</strong>
             <span>{nombreDia(turno.inicio, new Date(ahora))} a las {hora(turno.inicio)} h · con {prof.titulo ? `${prof.titulo} ` : ''}{prof.nombre}</span>
-            <span>{formatoPrecio(servicio.precio, config.moneda)}</span>
+            <span>{formatoPrecio(estado.rubro === 'unas' ? precioCita(estado, turno) : servicio.precio, config.moneda)}</span>
             <span className={`bar-estado est-${turno.estado}`}>{NOMBRE_ESTADO[turno.estado]}</span>
           </div>
         </div>
+
+        {estado.rubro === 'unas' && servicio.diseno && modo !== 'diseno' && (
+          <section className="un-conf-dis" aria-labelledby="t-tudis">
+            <div className="un-conf-cab">
+              <h2 id="t-tudis" className="bar-h3" style={{ margin: 0 }}>Tu diseño</h2>
+              {!cerrado && <button type="button" className="bar-link" onClick={() => { setBorrador(turno.diseno ?? {}); setModo('diseno'); setAviso(null); }}>Cambiar diseño</button>}
+            </div>
+            <DisenoDeLaCita estado={estado} eleccion={turno.diseno} moneda={config.moneda} />
+          </section>
+        )}
+
+        {!cerrado && modo === 'diseno' && (
+          <ElegirDiseno
+            estado={estado}
+            config={config}
+            profId={turno.profId}
+            eleccion={borrador}
+            onCambio={setBorrador}
+            textoBoton="Guardar diseño"
+            onSeguir={(b) => {
+              let fallo = '';
+              const err = actualizar((e) => {
+                const r = cambiarDiseno(e, turno.id, b);
+                if ('error' in r) {
+                  fallo = r.error;
+                  return e;
+                }
+                return r.estado;
+              });
+              setAviso({ texto: fallo || err || `Listo, ${prof.nombre.split(' ')[0]} ya tiene tu diseño nuevo.` });
+              setModo('ver');
+            }}
+          />
+        )}
 
         {aviso && (
           <div className="bar-ok" role="status">

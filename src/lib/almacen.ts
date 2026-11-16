@@ -11,6 +11,7 @@ import { crearEstadoRepuestos } from './rubros/repuestos/datos-ejemplo';
 import { crearEstadoTienda } from './rubros/tienda/datos-ejemplo';
 import { crearEstadoBarberia } from './rubros/barberia/datos-ejemplo';
 import { crearEstadoConsultorio } from './rubros/consultorio/datos-ejemplo';
+import { crearEstadoUnas } from './rubros/unas/datos-ejemplo';
 import { crearEstadoFerreteria } from './rubros/ferreteria/datos-ejemplo';
 import { crearEstadoAutos } from './rubros/autos/datos-ejemplo';
 import { crearEstadoInmo } from './rubros/inmobiliaria/datos-ejemplo';
@@ -26,6 +27,7 @@ function estadoInicial(config: DemoConfig): unknown {
   if (config.rubro === 'autos') return crearEstadoAutos(config.moneda);
   if (config.rubro === 'ferreteria') return crearEstadoFerreteria(config.moneda);
   if (config.rubro === 'consultorio') return crearEstadoConsultorio(config.moneda);
+  if (config.rubro === 'unas') return crearEstadoUnas(config.moneda);
   if (config.rubro === 'barberia') return crearEstadoBarberia(config.moneda);
   if (config.rubro === 'tienda') return crearEstadoTienda(config.moneda, config.variante);
   return config.rubro === 'repuestos' ? crearEstadoRepuestos(config.moneda) : crearEstadoInicial(config.moneda);
