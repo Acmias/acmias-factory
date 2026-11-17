@@ -1,4 +1,4 @@
-import type { Diseno, EleccionDiseno } from '@/lib/rubros/unas/tipos';
+import type { Adicional, CobroSalon, Diseno, EleccionDiseno, Opinion, PagoTurno } from '@/lib/rubros/unas/tipos';
 
 /**
  * Agenda de turnos (BRD 04). Genérica: la reutilizan el consultorio (sin datos clínicos) y uñas (BRD 13).
@@ -51,6 +51,10 @@ export interface Turno {
   modalidad?: 'presencial' | 'video';
   /** Uñas: el diseño que eligió la clienta queda guardado en la cita. */
   diseno?: EleccionDiseno;
+  /** Uñas: ids de diseños adicionales elegidos (muñequitos, strass…). */
+  adicionales?: string[];
+  /** Uñas: forma de pago y estado de la seña. */
+  pago?: PagoTurno;
   ejemplo?: boolean;
 }
 
@@ -122,4 +126,7 @@ export interface EstadoAgenda {
   eventos?: Evento[];
   /** Uñas: catálogo de diseños (de cada manicurista y del equipo). */
   disenos?: Diseno[];
+  adicionales?: Adicional[];
+  opiniones?: Opinion[];
+  cobro?: CobroSalon;
 }

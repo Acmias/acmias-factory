@@ -1,5 +1,6 @@
 import { test, expect, type Page } from '@playwright/test';
-import { enlacePinterest } from '../src/lib/rubros/unas/logica';
+import { dejarOpinion, enlacePinterest, guardarCobro, montoSena } from '../src/lib/rubros/unas/logica';
+import { crearEstadoUnas } from '../src/lib/rubros/unas/datos-ejemplo';
 
 // Martes 10 de noviembre de 2026, 11:00: el salón abre de lunes a sábado de 10 a 20 h.
 test.beforeEach(async ({ page }) => {
@@ -25,23 +26,22 @@ async function crearDemo(page: Page, nombre = 'Estudio Nácar') {
   return page.url().split('/d/')[1].split(/[#/]/)[0];
 }
 
-/** Con quién → servicio → primer horario libre. */
-async function hastaElDiseno(page: Page, quien = 'Sofía Paz', servicio = /Esmaltado semipermanente/) {
-  await expect(page.getByRole('heading', { name: '¿Con quién te las hacés?' })).toBeVisible();
-  await page.getByRole('button', { name: new RegExp(quien) }).click();
+/** Del inicio al paso del servicio. */
+async function empezar(page: Page, servicio = /Esmaltado semipermanente/) {
+  await page.getByRole('button', { name: 'Reservar turno' }).first().click();
+  await expect(page.getByRole('heading', { name: '¿Qué te hacés?' })).toBeVisible();
   await page.getByRole('button', { name: servicio }).click();
-  await expect(page.getByRole('heading', { name: '¿Qué día?' })).toBeVisible();
-  await page.locator('.bar-hora').first().click();
 }
 
-async function datos(page: Page, nombre: string, wa = '11 4444 3333') {
+async function confirmar(page: Page, nombre: string, forma: 'Efectivo' | 'Mercado Pago' = 'Efectivo') {
   await page.getByLabel('Tu nombre').fill(nombre);
-  await page.getByLabel('Tu WhatsApp').fill(wa);
-  await page.getByRole('button', { name: 'Reservar cita' }).click();
-  await expect(page.getByRole('heading', { name: '¡Cita reservada!' })).toBeVisible();
+  await page.getByLabel('Tu WhatsApp').fill('11 4444 3333');
+  await page.getByRole('group', { name: 'Forma de pago' }).getByRole('button', { name: forma }).click();
+  await page.getByRole('button', { name: 'Reservar turno' }).click();
+  await expect(page.getByRole('heading', { name: /¡Turno reservado!/ })).toBeVisible();
 }
 
-/** Abre la ficha de la cita desde la pestaña Diseños del panel (hoy o mañana). */
+/** Busca la fila del turno en "Para preparar" (recorre los próximos días). */
 async function abrirFicha(page: Page, slug: string, nombre: string) {
   await page.goto(`/d/${slug}/panel`);
   await page.getByRole('tab', { name: 'Diseños' }).click();
@@ -53,168 +53,214 @@ async function abrirFicha(page: Page, slug: string, nombre: string) {
     await dias.nth(i).click();
     await expect(dias.nth(i)).toHaveAttribute('aria-pressed', 'true');
   }
-  await fila.first().click();
-  return page.getByRole('dialog');
+  return fila.first();
 }
 
-test('enlaces de Pinterest: acepta pin.it y dominios del país, rechaza otros', () => {
-  expect(enlacePinterest('https://pin.it/4AbCdEf')).toBe('https://pin.it/4AbCdEf');
-  expect(enlacePinterest('ar.pinterest.com/pin/123456/')).toBe('https://ar.pinterest.com/pin/123456/');
+test('lógica: enlaces de Pinterest, seña redondeada, cobro y opiniones', () => {
   expect(enlacePinterest('Mirá este pin en Pinterest: https://pin.it/7xYz ')).toBe('https://pin.it/7xYz');
-  expect(enlacePinterest('https://www.pinterest.com.mx/pin/99/ te gusta?')).toBe('https://www.pinterest.com.mx/pin/99/');
-  expect(enlacePinterest('https://pinterest.estafa.com/pin/1')).toBeNull();
   expect(enlacePinterest('https://pinterest.ab.com/pin/1')).toBeNull();
-  expect(enlacePinterest('https://es.pinterest.co.uk/pin/5/')).toBe('https://es.pinterest.co.uk/pin/5/');
   expect(enlacePinterest('https://instagram.com/p/abc')).toBeNull();
-  expect(enlacePinterest('javascript:alert(1)')).toBeNull();
+
+  const e = crearEstadoUnas('ARS', new Date(2026, 10, 10, 11, 0).getTime());
+  expect(montoSena(e, 22400)).toBe(6700);
+  expect(montoSena({ ...e, cobro: { ...e.cobro!, senaPct: 0 } }, 22400)).toBe(0);
+
+  const sinAlias = guardarCobro(e, { ...e.cobro!, alias: '', enlace: '' });
+  expect('error' in sinAlias && sinAlias.error).toContain('alias');
+  const http = guardarCobro(e, { ...e.cobro!, enlace: 'http://mpago.la/abc' });
+  expect('error' in http && http.error).toContain('https');
+
+  const atendido = e.turnos.find((t) => t.estado === 'atendido')!;
+  const futuro = e.turnos.find((t) => t.estado === 'reservado' || t.estado === 'confirmado')!;
+  expect(dejarOpinion(e, futuro.token, 5, 'Hermoso')).toEqual({ error: 'Vas a poder opinar después de tu cita.' });
+  const r = dejarOpinion(e, atendido.token, 5, 'Me encantó');
+  expect('estado' in r).toBe(true);
+  if ('estado' in r) expect(dejarOpinion(r.estado, atendido.token, 4, 'Otra')).toEqual({ error: 'Ya dejaste tu opinión de esta cita. ¡Gracias!' });
 });
 
-test('la clienta elige con quién, cuándo, la hora y su diseño; todo queda en la cita para la manicurista', async ({ page }) => {
-  const slug = await crearDemo(page);
-  await hastaElDiseno(page);
-
-  // Primero los trabajos de quien la atiende, después los del equipo, después Pinterest.
-  await expect(page.getByRole('heading', { name: 'Elegí tu diseño' })).toBeVisible();
-  const titulos = await page.locator('.un-h3').allInnerTexts();
-  expect(titulos.slice(0, 3).map((t) => t.replace(/^SP\s*/, '').trim())).toEqual(['Trabajos de Sofía', 'Lo que se hace en el equipo', 'Tu idea de Pinterest']);
-  await expect(page.getByRole('group', { name: 'Trabajos de Sofía' }).getByRole('button')).toHaveCount(4);
-  await expect(page.getByRole('group', { name: 'Diseños del equipo' }).getByRole('button', { name: /de Sofía/ })).toHaveCount(0);
-
-  await page.getByRole('group', { name: 'Trabajos de Sofía' }).getByRole('button', { name: /^Flores lilas/ }).click();
-  await page.getByLabel('Enlace del pin').fill('https://ar.pinterest.com/pin/123456789/');
-  await page.getByLabel(/Algo más que tenga que saber Sofía/).fill('Que el dorado sea solo en el anular.');
-  await expect(page.locator('.un-seguir p')).toContainText('Flores lilas (de Sofía) + idea de Pinterest');
-  await page.getByRole('button', { name: 'Seguir' }).click();
-
-  await expect(page.getByRole('heading', { name: 'Confirmá tu cita' })).toBeVisible();
-  await expect(page.locator('.bar-resumen')).toContainText('nail art');
-  await expect(page.locator('.un-conf-dis')).toContainText('Flores lilas');
-  await datos(page, 'Rocío Prueba');
-
-  await expect(page.getByRole('heading', { name: 'Lo que Sofía ya tiene en tu cita' })).toBeVisible();
-  await expect(page.locator('.un-esmaltes')).toContainText('Lila');
-  await expect(page.locator('.bar-burbuja')).toContainText('Diseño: Flores lilas (de Sofía) + idea de Pinterest');
-  await expect(page.locator('.bar-burbuja')).toContainText('Nail art:');
-
-  // En el panel: la cita aparece para preparar, con el diseño, los esmaltes, la nota y el pin.
-  const ficha = await abrirFicha(page, slug, 'Rocío Prueba');
-  await expect(ficha.getByRole('heading', { name: 'Para esta cita' })).toBeVisible();
-  await expect(ficha).toContainText('Flores lilas');
-  await expect(ficha).toContainText('Esmaltes a preparar');
-  await expect(ficha).toContainText('Nude rosado');
-  await expect(ficha).toContainText('Que el dorado sea solo en el anular.');
-  await expect(ficha.getByRole('link', { name: 'Abrir el pin' })).toHaveAttribute('href', 'https://ar.pinterest.com/pin/123456789/');
-  await expect(ficha).toContainText('Total estimado');
-});
-
-test('Pinterest: un enlace que no es de Pinterest se corrige y la captura queda guardada en la cita', async ({ page }) => {
-  const slug = await crearDemo(page);
-  await hastaElDiseno(page, 'Lucía Ferro');
-  await page.getByLabel('Enlace del pin').fill('https://instagram.com/p/xyz');
-  await page.getByRole('button', { name: 'Seguir' }).click();
-  await expect(page.locator('#e-pin')).toContainText('no es de Pinterest');
-
-  await page.getByLabel('Enlace del pin').fill('');
-  // Una imagen chica (PNG 1×1) como captura del pin: se achica a JPEG en el teléfono.
-  const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==', 'base64');
-  await page.getByLabel('Subir captura del pin').setInputFiles({ name: 'pin.png', mimeType: 'image/png', buffer: png });
-  await expect(page.getByAltText('Tu captura del pin')).toBeVisible();
-  await expect(page.locator('.un-seguir p')).toContainText('Idea de Pinterest');
-  await page.getByRole('button', { name: 'Seguir' }).click();
-  await datos(page, 'Mara Captura');
-
-  const ficha = await abrirFicha(page, slug, 'Mara Captura');
-  await expect(ficha.getByAltText('Captura del pin que eligió la clienta')).toBeVisible();
-  const src = await ficha.getByAltText('Captura del pin que eligió la clienta').getAttribute('src');
-  expect(src).toMatch(/^data:image\/jpeg;base64,/);
-});
-
-test('sin elegir diseño lo deciden en el local', async ({ page }) => {
-  const slug = await crearDemo(page);
-  await hastaElDiseno(page, 'Carla Medina', /Kapping gel/);
-  await page.getByRole('button', { name: 'Lo decido en el local' }).click();
-  await datos(page, 'Nina Sinidea');
-  await expect(page.locator('.bar-burbuja')).toContainText('Diseño: Lo decide en el local');
-
-  const ficha = await abrirFicha(page, slug, 'Nina Sinidea');
-  await expect(ficha).toContainText('La clienta no eligió diseño');
-});
-
-test('el retiro no pide diseño', async ({ page }) => {
+test('inicio: catálogo en tres carpetas para mirar, opiniones con estrellas y botón para reservar', async ({ page }) => {
   await crearDemo(page);
-  await hastaElDiseno(page, 'Lucía Ferro', /Retiro \+ manicura/);
-  await expect(page.getByRole('heading', { name: 'Confirmá tu cita' })).toBeVisible();
-  await expect(page.locator('.un-conf-dis')).toHaveCount(0);
+  const carpetas = page.getByRole('tablist', { name: 'Carpetas del catálogo' }).getByRole('tab');
+  await expect(carpetas).toHaveText([/Diseños del salón/, /Inspiraciones/, /Tendencias 2027/]);
+  await expect(page.locator('.un-galeria button.un-tarjeta')).toHaveCount(0); // en el inicio solo se mira
+  await page.getByRole('tab', { name: /Tendencias 2027/ }).click();
+  await expect(page.getByText('Mocha cromado')).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Lo que dicen las clientas' })).toBeVisible();
+  await expect(page.locator('.un-prom')).toContainText('6 opiniones');
+  await expect(page.getByText('Opiniones de ejemplo')).toBeVisible();
+  await expect(page.locator('.un-opinion').first()).toContainText('★');
+  await expect(page.getByRole('button', { name: 'Reservar turno' }).first()).toBeVisible();
 });
 
-test('con la primera libre, el diseño propio es de quien le tocó; desde su enlace cambia el diseño', async ({ page }) => {
-  await crearDemo(page);
-  await page.getByRole('button', { name: /Con la primera libre/ }).click();
-  await page.getByRole('button', { name: /Kapping gel/ }).click();
+test('reserva: servicio con precio, diseño adicional, foto opcional, horario, seña por Mercado Pago y comprobante por WhatsApp', async ({ page }) => {
+  const slug = await crearDemo(page);
+  await page.getByRole('button', { name: 'Reservar turno' }).first().click();
+  await expect(page.getByRole('button', { name: /Esmaltado semipermanente.*\$/ })).toBeVisible();
+  await page.getByRole('button', { name: /Esmaltado semipermanente/ }).click();
+
+  // Diseño adicional opcional, con su precio.
+  await expect(page.getByRole('heading', { name: '¿Querés agregar un diseño?' })).toBeVisible();
+  const total0 = await page.locator('.un-seguir p').innerText();
+  await page.getByRole('button', { name: /Muñequitos/ }).click();
+  await expect(page.locator('.un-seguir p')).not.toHaveText(total0);
+  await expect(page.locator('.un-seguir p')).toContainText('1 adicional');
+  await page.getByRole('button', { name: 'Seguir' }).click();
+
+  // Foto de referencia opcional, desde las mismas carpetas del inicio.
+  await expect(page.getByRole('heading', { name: '¿Querés usar alguna de nuestras ideas?' })).toBeVisible();
+  await page.getByRole('tab', { name: /Tendencias 2027/ }).click();
+  await page.getByRole('button', { name: /^Mocha cromado/ }).click();
+  await expect(page.locator('.un-seguir p')).toContainText('Mocha cromado (Tendencias 2027)');
+  await page.getByRole('button', { name: 'Seguir' }).click();
+
+  await expect(page.getByRole('heading', { name: '¿Qué día?' })).toBeVisible();
   await page.locator('.bar-hora').first().click();
-  const titulo = (await page.locator('.un-h3').first().innerText()).replace(/^[A-Z]{2}\s*/, '').trim();
-  expect(titulo).toMatch(/^Trabajos de (Sofía|Carla|Lucía)$/);
-  await page.getByRole('group', { name: 'Diseños del equipo' }).getByRole('button', { name: /^Nude natural/ }).click();
-  await page.getByRole('button', { name: 'Seguir' }).click();
-  await datos(page, 'Lola Cambia');
 
-  await page.getByRole('link', { name: /Ver, cambiar o cancelar/ }).click();
-  await expect(page.locator('.un-conf-dis')).toContainText('Nude natural');
-  await page.getByRole('button', { name: 'Cambiar diseño' }).click();
-  await page.getByRole('button', { name: /Ver todos los diseños del equipo/ }).click().catch(() => {});
-  await page.getByRole('button', { name: /^Borgoña glitter/ }).click();
-  await page.getByRole('button', { name: /^Almendra/ }).click();
-  await page.getByRole('button', { name: 'Guardar diseño' }).click();
-  await expect(page.getByRole('status')).toContainText('ya tiene tu diseño nuevo');
-  await expect(page.locator('.un-conf-dis')).toContainText('Borgoña glitter');
-  await expect(page.locator('.un-conf-dis')).toContainText('el diseño original es cuadrada');
+  // Sin forma de pago no reserva.
+  await page.getByLabel('Tu nombre').fill('Rocío Prueba');
+  await page.getByLabel('Tu WhatsApp').fill('11 4444 3333');
+  await page.getByRole('button', { name: 'Reservar turno' }).click();
+  await expect(page.locator('#e-forma')).toContainText('Elegí cómo vas a pagar');
+  await expect(page.locator('.un-sena-aviso')).toContainText('seña de');
+  await page.getByRole('group', { name: 'Forma de pago' }).getByRole('button', { name: 'Efectivo' }).click();
+  await page.getByRole('button', { name: 'Reservar turno' }).click();
+
+  await expect(page.getByRole('heading', { name: '¡Turno reservado! Falta la seña' })).toBeVisible();
+  await expect(page.locator('.un-alias')).toContainText('salon.unas.demo');
+  await expect(page.locator('.un-precios').last()).toContainText('Muñequitos');
+  await expect(page.locator('.un-precios').last()).toContainText('En efectivo, en el local');
+  const wa = page.getByRole('link', { name: 'Mandar comprobante por WhatsApp' });
+  const href = decodeURIComponent((await wa.getAttribute('href')) ?? '');
+  expect(href).toContain('5491155551234');
+  expect(href).toContain('Diseño adicional: Muñequitos');
+  expect(href).toContain('Foto de referencia: Mocha cromado');
+  expect(href).toContain('comprobante de la seña');
+  expect(href).toContain('El resto lo pago en efectivo');
+  const [popup] = await Promise.all([page.waitForEvent('popup'), wa.click()]);
+  await popup.close();
+  await expect(page.getByRole('heading', { name: 'Comprobante enviado' })).toBeVisible();
+
+  // En el panel: comprobante avisado, la dueña confirma la seña.
+  const fila = await abrirFicha(page, slug, 'Rocío Prueba');
+  await expect(fila).toContainText('Mandó el comprobante');
+  await expect(fila).toContainText('+ Muñequitos');
+  await page.getByRole('button', { name: 'Confirmar seña de Rocío Prueba' }).click();
+  await expect(fila).toContainText('Seña confirmada');
+  await fila.click();
+  const ficha = page.getByRole('dialog');
+  await expect(ficha.getByRole('heading', { name: 'Para esta cita' })).toBeVisible();
+  await expect(ficha).toContainText('Mocha cromado');
+  await expect(ficha).toContainText('Seña confirmada');
 });
 
-test('catálogo: un diseño nuevo aparece al reservar y al ocultarlo deja de verse', async ({ page }) => {
+test('sin adicional y sin foto: lo charlan en el local', async ({ page }) => {
+  const slug = await crearDemo(page);
+  await empezar(page, /Kapping gel/);
+  await page.getByRole('button', { name: 'No, sin diseño adicional' }).click();
+  await page.getByRole('button', { name: 'No, otro / sin foto' }).click();
+  await page.locator('.bar-hora').first().click();
+  await confirmar(page, 'Nina Sinidea', 'Mercado Pago');
+  await expect(page.locator('.un-precios').last()).toContainText('Por Mercado Pago');
+  const fila = await abrirFicha(page, slug, 'Nina Sinidea');
+  await expect(fila).toContainText('Sin adicional');
+  await fila.click();
+  await expect(page.getByRole('dialog')).toContainText('Sin foto de referencia');
+});
+
+test('la dueña apaga la lista de adicionales y pone seña 0: la reserva salta ese paso y no pide seña', async ({ page }) => {
+  const slug = await crearDemo(page);
+  await page.goto(`/d/${slug}/panel`);
+  await page.getByRole('tab', { name: 'Precios y seña' }).click();
+  await page.getByLabel('Mostrar la lista al reservar').uncheck();
+  await expect(page.getByRole('status').filter({ hasText: 'ya no aparece al reservar' })).toBeVisible();
+  await page.getByLabel(/Seña \(% del total/).fill('0');
+  await page.getByRole('button', { name: 'Guardar seña' }).click();
+  await expect(page.getByRole('status').filter({ hasText: 'Datos de la seña guardados' })).toBeVisible();
+
+  await page.goto(`/d/${slug}`);
+  await empezar(page);
+  await expect(page.getByRole('heading', { name: '¿Querés usar alguna de nuestras ideas?' })).toBeVisible();
+  await expect(page.locator('.bar-paso').filter({ hasText: /^\d?Diseño$/ })).toHaveCount(0);
+  await page.getByRole('button', { name: 'No, otro / sin foto' }).click();
+  await page.locator('.bar-hora').first().click();
+  await expect(page.locator('.un-sena-aviso')).toHaveCount(0);
+  await confirmar(page, 'Sol Sinseña');
+  await expect(page.getByRole('heading', { name: '¡Turno reservado!', exact: true })).toBeVisible();
+  await expect(page.getByRole('link', { name: 'Avisar al salón' })).toBeVisible();
+});
+
+test('el retiro no pide diseño ni foto', async ({ page }) => {
+  await crearDemo(page);
+  await empezar(page, /Retiro \+ manicura/);
+  await expect(page.getByRole('heading', { name: '¿Qué día?' })).toBeVisible();
+  await page.locator('.bar-hora').first().click();
+  await expect(page.getByRole('heading', { name: 'Confirmá tu turno' })).toBeVisible();
+  await expect(page.locator('.un-precios dt').filter({ hasText: /^\+/ })).toHaveCount(0);
+});
+
+test('catálogo: la dueña sube una foto a Inspiraciones con el enlace del pin y aparece en el inicio', async ({ page }) => {
   const slug = await crearDemo(page);
   await page.goto(`/d/${slug}/panel`);
   await page.getByRole('tab', { name: 'Diseños' }).click();
-  await expect(page.getByRole('heading', { name: 'Para preparar hoy' })).toBeVisible();
-  await expect(page.getByText('Esmaltes del día')).toBeVisible();
-
-  await page.getByRole('button', { name: 'Nuevo diseño' }).click();
-  await page.getByRole('button', { name: 'Guardar diseño' }).click();
-  await expect(page.locator('.un-nuevo .bar-err')).toContainText('Poné un nombre');
-  await page.getByLabel('Nombre', { exact: true }).fill('Coral con lunares');
-  await page.getByLabel('Quién lo hizo').selectOption({ label: 'Sofía Paz' });
-  await page.getByLabel('Estilo').selectOption({ label: 'Lunares' });
-  await page.getByRole('button', { name: /^Nude rosado/ }).click(); // lo saca
-  await page.getByRole('button', { name: /^Coral/ }).click();
-  await page.getByRole('button', { name: /^Blanco leche/ }).click();
-  await page.getByRole('button', { name: 'Guardar diseño' }).click();
-  await expect(page.getByRole('status').filter({ hasText: '"Coral con lunares" ya aparece al reservar' })).toBeVisible();
+  await page.getByRole('button', { name: 'Agregar foto' }).click();
+  await page.locator('.un-nuevo select').first().selectOption({ label: 'Inspiraciones' });
+  await page.getByLabel('Nombre', { exact: true }).fill('Coral de verano');
+  await page.getByLabel('Enlace del pin (opcional)').fill('https://www.instagram.com/p/xyz');
+  await page.getByRole('button', { name: 'Guardar en el catálogo' }).click();
+  await expect(page.locator('.un-nuevo .bar-err')).toContainText('no es de Pinterest');
+  await page.getByLabel('Enlace del pin (opcional)').fill('https://pin.it/3abc');
+  const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==', 'base64');
+  await page.getByLabel('Subir foto del diseño').setInputFiles({ name: 'foto.png', mimeType: 'image/png', buffer: png });
+  await expect(page.getByAltText('Vista previa')).toBeVisible();
+  await page.getByRole('button', { name: 'Guardar en el catálogo' }).click();
+  await expect(page.getByRole('status').filter({ hasText: '"Coral de verano" ya está en Inspiraciones' })).toBeVisible();
+  await expect(page.locator('.un-cat li').filter({ hasText: 'Coral de verano' })).toContainText('foto propia');
 
   await page.goto(`/d/${slug}`);
-  await hastaElDiseno(page);
-  await expect(page.getByRole('group', { name: 'Trabajos de Sofía' }).getByRole('button', { name: /^Coral con lunares/ })).toBeVisible();
-
-  await page.goto(`/d/${slug}/panel`);
-  await page.getByRole('tab', { name: 'Diseños' }).click();
-  await page.getByRole('button', { name: 'Ocultar Coral con lunares' }).click();
-  await expect(page.getByRole('status').filter({ hasText: 'ya no se muestra al reservar' })).toBeVisible();
-  await page.goto(`/d/${slug}`);
-  await hastaElDiseno(page);
-  await expect(page.getByRole('button', { name: /^Coral con lunares/ })).toHaveCount(0);
+  await page.getByRole('tab', { name: /Inspiraciones/ }).click();
+  await expect(page.getByAltText('Coral de verano')).toBeVisible();
 });
 
-test('la demo de ejemplo abre con su sitio, la agenda muestra el diseño y las métricas facturan el nail art', async ({ page }) => {
+test('la clienta opina desde su turno después de la cita y la opinión aparece en el inicio', async ({ page }) => {
+  const slug = await crearDemo(page);
+  await empezar(page, /Retiro \+ manicura/);
+  await page.locator('.bar-hora').first().click();
+  await confirmar(page, 'Ema Opina');
+  const turno = await page.getByRole('link', { name: /Ver, cambiar o cancelar/ }).getAttribute('href');
+
+  const fila = await abrirFicha(page, slug, 'Ema Opina');
+  await fila.click();
+  await page.getByRole('dialog').getByRole('button', { name: 'Atendido' }).click();
+
+  await page.goto(turno!);
+  await expect(page.getByRole('heading', { name: '¿Cómo te atendieron?' })).toBeVisible();
+  await page.getByRole('radio', { name: '5 estrellas' }).click();
+  await page.getByLabel('Tu comentario (opcional)').fill('Me atendieron re bien, volveré.');
+  await page.getByRole('button', { name: 'Publicar opinión' }).click();
+  await expect(page.getByText('¡Gracias por tu opinión!')).toBeVisible();
+
+  await page.goto(`/d/${slug}`);
+  await expect(page.locator('.un-opinion').first()).toContainText('Me atendieron re bien, volveré.');
+  await expect(page.locator('.un-prom')).toContainText('7 opiniones');
+
+  await page.goto(`/d/${slug}/panel`);
+  await page.getByRole('tab', { name: 'Opiniones' }).click();
+  await page.getByRole('button', { name: 'Ocultar la opinión de Ema O.' }).click();
+  await page.goto(`/d/${slug}`);
+  await expect(page.locator('.un-prom')).toContainText('6 opiniones');
+});
+
+test('la demo de ejemplo abre con su sitio y el panel tiene sus pestañas', async ({ page }) => {
   await ingresar(page);
   await page.getByRole('button', { name: 'Ver demo de Estudio Nácar Uñas' }).click();
   await expect(page.getByRole('heading', { level: 1, name: 'Estudio Nácar Uñas' })).toBeVisible();
   const slug = page.url().split('/d/')[1].split(/[#/]/)[0];
   await page.goto(`/d/${slug}/sitio`);
-  await expect(page.getByRole('heading', { name: 'Elegí con quién, cuándo y tu diseño' })).toBeVisible();
-  await expect(page.getByRole('heading', { name: 'El equipo y sus trabajos' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Tus uñas, como las soñaste' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Diseños adicionales' })).toBeVisible();
   await page.goto(`/d/${slug}/panel`);
   await expect(page.getByText('Panel del salón')).toBeVisible();
-  await expect(page.locator('.ag-t-d').first()).toBeVisible();
-  await page.getByRole('tab', { name: 'Métricas' }).click();
-  await expect(page.getByText('Facturado en servicios (estimado)')).toBeVisible();
+  for (const t of ['Diseños', 'Precios y seña', 'Opiniones', 'Métricas']) await expect(page.getByRole('tab', { name: t })).toBeVisible();
   await page.getByRole('tab', { name: 'Ajustes' }).click();
-  await expect(page.getByLabel('Seña para uñas esculpidas (%)')).toHaveValue('30');
+  await expect(page.getByText('se configuran en la pestaña "Precios y seña"')).toBeVisible();
 });

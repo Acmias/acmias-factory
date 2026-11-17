@@ -5,7 +5,8 @@ import { Icono } from '@/components/Icono';
 import { AvisoDemo, DemoNoEncontrada } from '@/components/demo/useDemoCargada';
 import { enlaceWhatsApp, formatoPrecio } from '@/lib/utiles';
 import { hhmm, nombreDiaSemana } from '@/lib/rubros/barberia/agenda';
-import { NOMBRE_FORMA, deQuien, trabajosDe } from '@/lib/rubros/unas/logica';
+import { adicionalesVisibles, carpeta } from '@/lib/rubros/unas/logica';
+import { CatalogoYOpiniones } from './InicioSalon';
 import { useDemoBarberia } from '@/components/barberia/useBarberia';
 import { MuestraUnas } from './MuestraUnas';
 
@@ -16,8 +17,8 @@ export function SitioUnas({ slug }: { slug: string }) {
   const wa = enlaceWhatsApp(config.whatsapp, `Hola ${config.negocio}, quiero hacer una consulta.`);
   const abiertos = [1, 2, 3, 4, 5, 6, 0].filter((d) => estado.horario[d]);
   const h = abiertos.length ? estado.horario[abiertos[0]]! : null;
-  const visibles = (estado.disenos ?? []).filter((d) => d.visible);
-  const destacados = visibles.slice(0, 3);
+  const destacados = [...carpeta(estado, 'salon').slice(0, 2), ...carpeta(estado, 'tendencia').slice(0, 1)];
+  const extras = adicionalesVisibles(estado);
   return (
     <div className="sitio un-sitio" style={estilo}>
       <AvisoDemo texto="Manicuristas, diseños y precios de ejemplo" />
@@ -37,8 +38,8 @@ export function SitioUnas({ slug }: { slug: string }) {
           </nav>
           <div className="un-s-hero-in">
             <div>
-              <h1>Elegí con quién, cuándo y tu diseño</h1>
-              <p>Mirá los trabajos de cada manicurista, elegí uno o traé tu idea de Pinterest. Queda guardado en tu cita y te esperamos con los esmaltes listos.</p>
+              <h1>Tus uñas, como las soñaste</h1>
+              <p>Mirá nuestros diseños, las inspiraciones y las tendencias 2027. Reservá tu turno en un minuto: elegís el servicio, el diseño y el horario.</p>
               <div className="s-acciones">
                 <Link href={`/d/${slug}`} className="s-btn uno"><Icono nombre="calendario" size={18} /> Reservar cita</Link>
                 <a href={wa} className="s-btn dos" target="_blank" rel="noopener noreferrer"><Icono nombre="whatsapp" /> Escribinos</a>
@@ -50,33 +51,12 @@ export function SitioUnas({ slug }: { slug: string }) {
           </div>
         </div>
       </section>
-      <section className="s-sec">
+      <section className="s-sec bar un un-sitio-cat">
         <div className="s-in">
-          <h2>El equipo y sus trabajos</h2>
-          <div className="un-s-equipo">
-            {estado.profesionales.map((p) => (
-              <article key={p.id}>
-                <h3>{p.nombre}</h3>
-                <p>{p.especialidad}</p>
-                <ul>
-                  {trabajosDe(estado, p.id).slice(0, 4).map((d) => (
-                    <li key={d.id}><MuestraUnas diseno={d} titulo={d.nombre} /><span>{d.nombre}<small>{NOMBRE_FORMA[d.forma]}</small></span></li>
-                  ))}
-                </ul>
-              </article>
-            ))}
+          <CatalogoYOpiniones estado={estado} />
+          <div className="s-acciones" style={{ marginTop: 18 }}>
+            <Link href={`/d/${slug}`} className="s-btn uno"><Icono nombre="calendario" size={18} /> Reservar turno</Link>
           </div>
-          <p className="un-s-nota">Las ilustraciones son de ejemplo: en tu sitio van las fotos reales de cada trabajo.</p>
-        </div>
-      </section>
-      <section className="s-sec">
-        <div className="s-in">
-          <h2>Del catálogo del equipo</h2>
-          <ul className="un-s-cat">
-            {visibles.filter((d) => d.autora === 'equipo').map((d) => (
-              <li key={d.id}><MuestraUnas diseno={d} titulo={d.nombre} /><span>{d.nombre}<small>{deQuien(estado, d)}</small></span></li>
-            ))}
-          </ul>
         </div>
       </section>
       <section className="s-sec">
@@ -90,11 +70,21 @@ export function SitioUnas({ slug }: { slug: string }) {
               </li>
             ))}
           </ul>
+          {extras.length > 0 && (
+            <>
+              <h3 style={{ marginTop: 24 }}>Diseños adicionales</h3>
+              <ul className="sb-servicios">
+                {extras.map((a) => (
+                  <li key={a.id}><span><strong>{a.nombre}</strong><small>{a.descripcion}</small></span><strong>+ {formatoPrecio(a.precio, config.moneda)}</strong></li>
+                ))}
+              </ul>
+            </>
+          )}
         </div>
       </section>
       <section className="s-sec" style={{ background: 'var(--c-acento-suave)' }}>
         <div className="s-in s-info">
-          <div><h3>Cómo reservar</h3><p>Elegí manicurista, servicio, día y hora. Después tu diseño: uno de ella, uno del equipo o el enlace de Pinterest.</p></div>
+          <div><h3>Cómo reservar</h3><p>Elegí el servicio, si querés un diseño adicional y el horario. Pagás la seña por Mercado Pago y mandás el comprobante por WhatsApp.</p></div>
           <div><h3>Horario</h3><p>{h ? `${abiertos.length > 2 && abiertos.every((d, i) => i === 0 || d === (abiertos[i - 1] + 1) % 7) ? `De ${nombreDiaSemana(abiertos[0])} a ${nombreDiaSemana(abiertos[abiertos.length - 1])}` : abiertos.map(nombreDiaSemana).join(', ')} de ${hhmm(h[0])} a ${hhmm(h[1])} h.` : 'A confirmar.'}</p></div>
           <div><h3>Dónde estamos</h3><p>{config.direccion || '[Dirección del salón]'}</p></div>
         </div>

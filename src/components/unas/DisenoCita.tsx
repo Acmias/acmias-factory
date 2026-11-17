@@ -1,89 +1,144 @@
 'use client';
 
+import { useState } from 'react';
 import { Icono } from '@/components/Icono';
 import { formatoPrecio } from '@/lib/utiles';
-import { NOMBRE_FORMA, NOMBRE_PATRON, deQuien, disenoPorId, eligioAlgo, esmaltesPara, formaDe } from '@/lib/rubros/unas/logica';
-import type { EstadoAgenda } from '@/lib/rubros/barberia/tipos';
-import type { Diseno, EleccionDiseno } from '@/lib/rubros/unas/tipos';
+import { AYUDA_CARPETA, CARPETAS, ESTADO_SENA, NOMBRE_CARPETA, NOMBRE_FORMA, adicionalesDe, carpeta, cobroDe, deQuien, disenoPorId, esmaltesPara, formaDe, precioCita } from '@/lib/rubros/unas/logica';
+import type { EstadoAgenda, Turno } from '@/lib/rubros/barberia/tipos';
+import type { Carpeta, Diseno, Opinion } from '@/lib/rubros/unas/tipos';
 import { MuestraUnas } from './MuestraUnas';
 
-/** Tarjeta elegible de un diseño del catálogo. */
-export function TarjetaDiseno({ estado, d, moneda, elegido, onElegir, autora = true }: { estado: EstadoAgenda; d: Diseno; moneda: string; elegido: boolean; onElegir: () => void; autora?: boolean }) {
-  const extra = d.extra ? `+ ${formatoPrecio(d.extra, moneda)}` : 'Incluido';
-  return (
-    <button type="button" className="un-tarjeta" aria-pressed={elegido} onClick={onElegir} aria-label={`${d.nombre}, ${NOMBRE_FORMA[d.forma].toLowerCase()}, ${deQuien(estado, d)}, ${d.extra ? `nail art ${extra}` : 'sin costo extra'}`}>
+/** Foto del catálogo. Si `onElegir` existe, se puede marcar como referencia. */
+export function TarjetaFoto({ estado, d, elegido, onElegir }: { estado: EstadoAgenda; d: Diseno; elegido?: boolean; onElegir?: () => void }) {
+  const cuerpo = (
+    <>
       <MuestraUnas diseno={d} titulo={d.nombre} />
       <span className="un-tarjeta-txt">
         <strong>{d.nombre}</strong>
-        <small>{NOMBRE_FORMA[d.forma]}{autora ? ` · ${deQuien(estado, d)}` : ''}</small>
-        <span className={d.extra ? 'un-extra' : 'un-extra incl'}>{extra}</span>
+        <small>{d.carpeta === 'salon' ? deQuien(estado, d) : NOMBRE_FORMA[d.forma]}</small>
       </span>
       {elegido && <span className="un-tilde" aria-hidden="true"><Icono nombre="check" size={14} /></span>}
+    </>
+  );
+  if (!onElegir) return <figure className="un-tarjeta solo">{cuerpo}</figure>;
+  return (
+    <button type="button" className="un-tarjeta" aria-pressed={!!elegido} onClick={onElegir} aria-label={`${d.nombre}, ${deQuien(estado, d)}`}>
+      {cuerpo}
     </button>
   );
 }
 
-/**
- * Lo que la clienta dejó en la cita: diseño, forma, esmaltes a preparar, idea de Pinterest y nota.
- * Es lo mismo que ve la manicurista antes de atender.
- */
-export function DisenoDeLaCita({ estado, eleccion, moneda, para = 'clienta' }: { estado: EstadoAgenda; eleccion?: EleccionDiseno; moneda: string; para?: 'clienta' | 'salon' }) {
-  if (!eligioAlgo(eleccion)) {
-    return (
-      <div className="un-cita vacia">
-        <Icono nombre="info" size={18} />
-        <p>{para === 'salon' ? 'La clienta no eligió diseño: lo deciden juntas en el local.' : 'No elegiste diseño: lo charlás en el local.'}</p>
+/** Las tres carpetas del catálogo, con pestañas. Para mirar o, en la reserva, para marcar una foto. */
+export function Galeria({ estado, elegido, onElegir, inicial = 'salon', max }: { estado: EstadoAgenda; elegido?: string; onElegir?: (id: string) => void; inicial?: Carpeta; max?: number }) {
+  const [c, setC] = useState<Carpeta>(() => (elegido ? disenoPorId(estado, elegido)?.carpeta ?? inicial : inicial));
+  const [todas, setTodas] = useState(false);
+  const fotos = carpeta(estado, c);
+  const vista = max && !todas ? fotos.slice(0, max) : fotos;
+  return (
+    <div className="un-galeria">
+      <div className="un-carpetas" role="tablist" aria-label="Carpetas del catálogo">
+        {CARPETAS.map((k) => (
+          <button key={k} type="button" role="tab" aria-selected={c === k} onClick={() => { setC(k); setTodas(false); }}>
+            {NOMBRE_CARPETA[k]} <small>{carpeta(estado, k).length}</small>
+          </button>
+        ))}
       </div>
-    );
-  }
-  const x = eleccion!;
-  const d = disenoPorId(estado, x.disenoId);
-  const forma = formaDe(estado, x);
-  const esm = esmaltesPara(estado, x);
+      <p className="un-carpeta-ayuda">{AYUDA_CARPETA[c]}</p>
+      <div className="un-grilla" role={onElegir ? 'group' : undefined} aria-label={NOMBRE_CARPETA[c]}>
+        {vista.map((d) => <TarjetaFoto key={d.id} estado={estado} d={d} elegido={elegido === d.id} onElegir={onElegir ? () => onElegir(d.id) : undefined} />)}
+      </div>
+      {vista.length < fotos.length && <button type="button" className="bar-link" style={{ marginTop: 8 }} onClick={() => setTodas(true)}>Ver las {fotos.length} fotos</button>}
+      {!fotos.length && <p className="bar-ayuda">Todavía no hay fotos en esta carpeta.</p>}
+    </div>
+  );
+}
+
+export function Estrellas({ n, tam = 16 }: { n: number; tam?: number }) {
+  return (
+    <span className="un-estrellas" role="img" aria-label={`${n} de 5 estrellas`} style={{ fontSize: tam }}>
+      {[1, 2, 3, 4, 5].map((i) => <span key={i} aria-hidden="true" data-llena={i <= Math.round(n) ? '1' : undefined}>★</span>)}
+    </span>
+  );
+}
+
+export function TarjetaOpinion({ o }: { o: Opinion }) {
+  return (
+    <figure className="un-opinion">
+      <Estrellas n={o.estrellas} />
+      <blockquote>“{o.texto}”</blockquote>
+      <figcaption>{o.nombre}</figcaption>
+    </figure>
+  );
+}
+
+type Cita = Pick<Turno, 'servicioId' | 'adicionales' | 'diseno' | 'pago'>;
+
+/**
+ * Resumen de la cita: servicio, diseño adicional, foto de referencia, total y seña.
+ * Lo mismo ve la clienta al confirmar y la manicurista antes de atender.
+ */
+export function DetalleCita({ estado, cita, moneda, para = 'clienta' }: { estado: EstadoAgenda; cita: Cita; moneda: string; para?: 'clienta' | 'salon' }) {
+  const p = (v: number) => formatoPrecio(v, moneda);
+  const s = estado.servicios.find((x) => x.id === cita.servicioId);
+  const ads = adicionalesDe(estado, cita.adicionales);
+  const d = disenoPorId(estado, cita.diseno?.disenoId);
+  const forma = formaDe(estado, cita.diseno);
+  const esm = para === 'salon' ? esmaltesPara(estado, cita.diseno) : [];
+  const c = cobroDe(estado);
+  const x = cita.diseno;
   return (
     <div className="un-cita">
-      {d && (
+      <dl className="un-precios">
+        <div><dt>{s?.nombre ?? 'Servicio'}</dt><dd>{p(s?.precio ?? 0)}</dd></div>
+        {ads.map((a) => <div key={a.id}><dt>+ {a.nombre}</dt><dd>{p(a.precio)}</dd></div>)}
+        <div className="total"><dt>Total</dt><dd>{p(precioCita(estado, cita))}</dd></div>
+        {cita.pago && cita.pago.sena > 0 && (
+          <div className="sena"><dt>Seña por {c.medio}</dt><dd>{p(cita.pago.sena)} <span className={`un-chip-sena ${cita.pago.estadoSena}`}>{ESTADO_SENA[cita.pago.estadoSena]}</span></dd></div>
+        )}
+        {cita.pago && <div className="pago"><dt>{cita.pago.sena ? 'El resto' : 'Paga'}</dt><dd>{cita.pago.forma === 'efectivo' ? 'En efectivo, en el local' : `Por ${c.medio}`}</dd></div>}
+      </dl>
+      {d ? (
         <div className="un-cita-dis">
           <MuestraUnas diseno={{ ...d, forma: forma ?? d.forma }} titulo={d.nombre} className="un-muestra grande" />
           <div>
+            <small>Foto de referencia</small>
             <strong>{d.nombre}</strong>
-            <span>{NOMBRE_PATRON[d.patron]} · {deQuien(estado, d)}</span>
-            <span>{d.extra ? `Nail art + ${formatoPrecio(d.extra, moneda)}` : 'Sin costo extra'}</span>
+            <span>{deQuien(estado, d)}{forma ? ` · ${NOMBRE_FORMA[forma]}` : ''}</span>
+            {d.pin && para === 'salon' && <a href={d.pin} target="_blank" rel="noopener noreferrer nofollow" className="un-pin"><Icono nombre="enlace" size={16} /> Ver en Pinterest</a>}
           </div>
         </div>
+      ) : (
+        <p className="un-cita vacia"><Icono nombre="info" size={18} /> {para === 'salon' ? 'Sin foto de referencia: lo charlan en el local.' : 'Sin foto de referencia: lo charlás en el local.'}</p>
       )}
-      <dl className="un-datos">
-        {forma && (
-          <div><dt>Forma</dt><dd>{NOMBRE_FORMA[forma]}{d && x.forma && x.forma !== d.forma ? ` (el diseño original es ${NOMBRE_FORMA[d.forma].toLowerCase()})` : ''}</dd></div>
-        )}
-        {esm.length > 0 && (
-          <div>
-            <dt>{para === 'salon' ? 'Esmaltes a preparar' : 'Esmaltes'}</dt>
-            <dd className="un-esmaltes">{esm.map((e) => <span key={e.id}><i style={{ background: e.color }} aria-hidden="true" />{e.nombre}</span>)}</dd>
-          </div>
-        )}
-        {(x.pinterest || x.captura) && (
-          <div>
-            <dt>Idea de Pinterest</dt>
-            <dd>
-              {x.captura && (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img src={x.captura} alt="Captura del pin que eligió la clienta" className="un-captura" />
-              )}
-              {x.pinterest && <a href={x.pinterest} target="_blank" rel="noopener noreferrer nofollow" className="un-pin"><Icono nombre="enlace" size={16} /> Abrir el pin</a>}
-            </dd>
-          </div>
-        )}
-        {x.nota && <div><dt>{para === 'salon' ? 'Nota de la clienta' : 'Tu nota'}</dt><dd className="un-nota">“{x.nota}”</dd></div>}
-      </dl>
+      {(esm.length > 0 || x?.pinterest || x?.captura || x?.nota) && (
+        <dl className="un-datos">
+          {esm.length > 0 && (
+            <div>
+              <dt>Esmaltes a preparar</dt>
+              <dd className="un-esmaltes">{esm.map((e) => <span key={e.id}><i style={{ background: e.color }} aria-hidden="true" />{e.nombre}</span>)}</dd>
+            </div>
+          )}
+          {(x?.pinterest || x?.captura) && (
+            <div>
+              <dt>Idea de Pinterest</dt>
+              <dd>
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                {x.captura && <img src={x.captura} alt="Captura que mandó la clienta" className="un-captura" />}
+                {x.pinterest && <a href={x.pinterest} target="_blank" rel="noopener noreferrer nofollow" className="un-pin"><Icono nombre="enlace" size={16} /> Abrir el pin</a>}
+              </dd>
+            </div>
+          )}
+          {x?.nota && <div><dt>{para === 'salon' ? 'Nota de la clienta' : 'Tu nota'}</dt><dd className="un-nota">“{x.nota}”</dd></div>}
+        </dl>
+      )}
     </div>
   );
 }
 
 /** Achica una foto o captura en el teléfono antes de guardarla (máx. 640 px, JPEG). */
 export async function achicarImagen(archivo: File, max = 640): Promise<string> {
-  if (!archivo.type.startsWith('image/')) throw new Error('Elegí una imagen (captura o foto).');
-  if (archivo.size > 15_000_000) throw new Error('La imagen es muy pesada. Probá con una captura de pantalla.');
+  if (!archivo.type.startsWith('image/')) throw new Error('Elegí una imagen (foto o captura).');
+  if (archivo.size > 15_000_000) throw new Error('La imagen es muy pesada. Probá con otra.');
   const url = URL.createObjectURL(archivo);
   try {
     const img = await new Promise<HTMLImageElement>((ok, mal) => {

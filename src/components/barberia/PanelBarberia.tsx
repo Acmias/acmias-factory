@@ -35,12 +35,12 @@ import type { Cliente, EnEspera, EstadoAgenda, Turno } from '@/lib/rubros/barber
 import type { DemoConfig } from '@/lib/tipos';
 import { useAhora, useDemoBarberia, type ActualizarAgenda } from './useBarberia';
 import { Pacientes } from '@/components/consultorio/Pacientes';
-import { PanelDisenos } from '@/components/unas/PanelDisenos';
-import { DisenoDeLaCita } from '@/components/unas/DisenoCita';
+import { PanelDisenos, PanelOpiniones, PanelPrecios } from '@/components/unas/PanelDisenos';
+import { DetalleCita } from '@/components/unas/DisenoCita';
 import { MuestraUnas } from '@/components/unas/MuestraUnas';
-import { disenoPorId, formaDe, precioCita, resumenDiseno, ultimaCita } from '@/lib/rubros/unas/logica';
+import { ESTADO_SENA, confirmarSena, disenoPorId, formaDe, resumenAdicionales, ultimaCita } from '@/lib/rubros/unas/logica';
 
-type Pestana = 'agenda' | 'disenos' | 'espera' | 'clientes' | 'bloqueos' | 'metricas' | 'ajustes';
+type Pestana = 'agenda' | 'disenos' | 'precios' | 'opiniones' | 'espera' | 'clientes' | 'bloqueos' | 'metricas' | 'ajustes';
 const iniciales = (n: string) => n.split(' ').map((x) => x[0]).slice(0, 2).join('').toUpperCase();
 const origen = () => (typeof window !== 'undefined' ? window.location.origin : '');
 
@@ -53,7 +53,7 @@ export function PanelBarberia({ slug }: { slug: string }) {
   const avisar = estado.espera.filter((x) => x.avisado).length;
   const PESTANAS: { id: Pestana; nombre: string }[] = [
     { id: 'agenda', nombre: 'Agenda' },
-    ...(estado.rubro === 'unas' ? [{ id: 'disenos' as Pestana, nombre: 'Diseños' }] : []),
+    ...(estado.rubro === 'unas' ? [{ id: 'disenos' as Pestana, nombre: 'Diseños' }, { id: 'precios' as Pestana, nombre: 'Precios y seña' }, { id: 'opiniones' as Pestana, nombre: 'Opiniones' }] : []),
     { id: 'espera', nombre: `Lista de espera${enEspera + avisar ? ` (${enEspera + avisar})` : ''}` },
     { id: 'clientes', nombre: cons ? 'Pacientes' : 'Clientes' },
     { id: 'bloqueos', nombre: 'Bloqueos y vacaciones' },
@@ -93,6 +93,8 @@ export function PanelBarberia({ slug }: { slug: string }) {
       <main className="d-main" role="tabpanel" id={`pan-${pestana}`} aria-labelledby={`tab-${pestana}`}>
         {pestana === 'agenda' && <Agenda config={config} estado={estado} actualizar={actualizar} slug={slug} />}
         {pestana === 'disenos' && <Disenos config={config} estado={estado} actualizar={actualizar} slug={slug} />}
+        {pestana === 'precios' && <PanelPrecios estado={estado} actualizar={actualizar} moneda={config.moneda} />}
+        {pestana === 'opiniones' && <PanelOpiniones estado={estado} actualizar={actualizar} />}
         {pestana === 'espera' && <Espera config={config} estado={estado} actualizar={actualizar} slug={slug} />}
         {pestana === 'clientes' && (cons ? <Pacientes estado={estado} actualizar={actualizar} /> : <Clientes estado={estado} actualizar={actualizar} />)}
         {pestana === 'bloqueos' && <Bloqueos estado={estado} actualizar={actualizar} />}
@@ -256,7 +258,7 @@ function Linea({ estado, fecha, profs, inicio, fin, ahora, onTurno }: { estado: 
                   <span className="ag-t-h">{hora(t.inicio)}{t.sobreturno ? ' · ST' : ''}{t.modalidad === 'video' ? ' · Video' : ''}</span>
                   <span className="ag-t-c">{c?.nombre ?? 'Cliente'}</span>
                   <span className="ag-t-s">{s?.nombre}</span>
-                  {estado.rubro === 'unas' && s?.diseno && st.height >= 70 && <span className="ag-t-d">{resumenDiseno(estado, t.diseno)}</span>}
+                  {estado.rubro === 'unas' && st.height >= 70 && <span className="ag-t-d">{t.adicionales?.length ? `+ ${resumenAdicionales(estado, t.adicionales)}` : ''}{t.pago && t.pago.estadoSena !== 'sin-sena' ? `${t.adicionales?.length ? ' · ' : ''}${ESTADO_SENA[t.pago.estadoSena]}` : ''}</span>}
                 </button>
               );
             })}
@@ -308,7 +310,7 @@ function FichaTurno({ config, estado, turno, actualizar, slug, onCerrar }: { con
           {c && c.ausencias > 0 && <span className="chip-rep ausencias">{c.ausencias} {c.ausencias === 1 ? 'ausencia' : 'ausencias'}</span>}
         </p>
         {c?.notas && <p className="bar-notas"><Icono nombre="texto" size={16} /> {c.notas}</p>}
-        {estado.rubro === 'unas' && s.diseno && <FichaDiseno config={config} estado={estado} turno={turno} />}
+        {estado.rubro === 'unas' && <FichaDiseno config={config} estado={estado} turno={turno} actualizar={actualizar} />}
         <div className="bar-acciones" style={{ marginBottom: 12 }}>
           {turno.estado === 'reservado' && <button type="button" className="d-btn prim" onClick={() => cambiar('confirmado')}>Confirmar</button>}
           {(turno.estado === 'reservado' || turno.estado === 'confirmado') && (
@@ -333,24 +335,28 @@ function FichaTurno({ config, estado, turno, actualizar, slug, onCerrar }: { con
   );
 }
 
-/** Lo que la manicurista necesita antes de atender: el diseño de la cita y lo que se hizo la última vez. */
-function FichaDiseno({ config, estado, turno }: { config: DemoConfig; estado: EstadoAgenda; turno: Turno }) {
+/** Lo que la manicurista necesita antes de atender: servicio, adicionales, foto, seña y lo que se hizo la última vez. */
+function FichaDiseno({ config, estado, turno, actualizar }: { config: DemoConfig; estado: EstadoAgenda; turno: Turno; actualizar: ActualizarAgenda }) {
   const ult = ultimaCita(estado, turno.clienteId, turno.inicio);
   const dUlt = disenoPorId(estado, ult?.diseno?.disenoId);
-  const total = precioCita(estado, turno);
+  const sena = turno.pago?.estadoSena;
   return (
     <section className="un-ficha" aria-labelledby="t-ficha">
       <h4 id="t-ficha">Para esta cita</h4>
-      <DisenoDeLaCita estado={estado} eleccion={turno.diseno} moneda={config.moneda} para="salon" />
-      <p className="un-ficha-pie">
-        <span>Total estimado: <strong>{formatoPrecio(total, config.moneda)}</strong></span>
-        {ult && (
+      <DetalleCita estado={estado} cita={turno} moneda={config.moneda} para="salon" />
+      {(sena === 'pendiente' || sena === 'avisada') && (
+        <button type="button" className="d-btn prim" style={{ marginTop: 10 }} onClick={() => actualizar((e) => confirmarSena(e, turno.id))}>
+          <Icono nombre="check" size={16} /> {sena === 'avisada' ? 'Confirmar seña (ya mandó el comprobante)' : 'Marcar seña recibida'}
+        </button>
+      )}
+      {ult && (
+        <p className="un-ficha-pie">
           <span className="un-ultima">
             {dUlt && <MuestraUnas diseno={{ ...dUlt, forma: formaDe(estado, ult.diseno) ?? dUlt.forma }} className="un-muestra mini" titulo={dUlt.nombre} />}
-            La última vez ({fechaCorta(new Date(ult.inicio))}): {dUlt ? dUlt.nombre : resumenDiseno(estado, ult.diseno).toLowerCase()}
+            La última vez ({fechaCorta(new Date(ult.inicio))}): {estado.servicios.find((x) => x.id === ult.servicioId)?.nombre.toLowerCase()}{dUlt ? `, ${dUlt.nombre}` : ''}{ult.adicionales?.length ? ` + ${resumenAdicionales(estado, ult.adicionales)}` : ''}
           </span>
-        )}
-      </p>
+        </p>
+      )}
     </section>
   );
 }
@@ -745,7 +751,7 @@ function Ajustes({ slug, config, estado, actualizar }: { slug: string; config: D
                 ? {
                     metaSellos: Math.min(20, Math.max(3, Math.floor(Number(f.get('meta')) || 10))),
                     beneficio: String(f.get('beneficio') ?? '').trim() || x.beneficio,
-                    servicios: x.servicios.map((s) => (s.id === (x.rubro === 'unas' ? 's-esculpidas' : 's-color') ? { ...s, sena: Math.min(100, Math.max(0, Number(f.get('sena')) || 0)) || undefined } : s)),
+                    servicios: x.rubro === 'unas' ? x.servicios : x.servicios.map((s) => (s.id === 's-color' ? { ...s, sena: Math.min(100, Math.max(0, Number(f.get('sena')) || 0)) || undefined } : s)),
                   }
                 : { pausa: f.get('pausa1') && f.get('pausa2') && aMin(f.get('pausa2')) > aMin(f.get('pausa1')) ? [aMin(f.get('pausa1')), aMin(f.get('pausa2'))] as [number, number] : undefined }),
             }));
@@ -777,9 +783,13 @@ function Ajustes({ slug, config, estado, actualizar }: { slug: string; config: D
           <label style={{ display: 'grid', gap: 6, fontWeight: 600 }}>Sellos para el beneficio<input name="meta" type="number" min={3} max={20} className="c-inp" defaultValue={estado.metaSellos} /></label>
           <label style={{ display: 'grid', gap: 6, fontWeight: 600 }}>Beneficio<input name="beneficio" className="c-inp" defaultValue={estado.beneficio} /></label>
         </div>
-        <label style={{ display: 'grid', gap: 6, fontWeight: 600 }}>{estado.rubro === 'unas' ? 'Seña para uñas esculpidas (%)' : 'Seña para color y mechas (%)'}<input name="sena" type="number" min={0} max={100} className="c-inp" defaultValue={estado.servicios.find((s) => s.id === (estado.rubro === 'unas' ? 's-esculpidas' : 's-color'))?.sena ?? 0} />
-          <span style={{ fontWeight: 400, fontSize: 13, color: '#55555f' }}>Se muestra al reservar. El cobro real de la seña es un módulo próximamente.</span>
-        </label>
+        {estado.rubro === 'unas' ? (
+          <p className="sub" style={{ margin: 0 }}>La seña, el alias de cobro y los diseños adicionales se configuran en la pestaña &quot;Precios y seña&quot;.</p>
+        ) : (
+          <label style={{ display: 'grid', gap: 6, fontWeight: 600 }}>Seña para color y mechas (%)<input name="sena" type="number" min={0} max={100} className="c-inp" defaultValue={estado.servicios.find((s) => s.id === 's-color')?.sena ?? 0} />
+            <span style={{ fontWeight: 400, fontSize: 13, color: '#55555f' }}>Se muestra al reservar. El cobro real de la seña es un módulo próximamente.</span>
+          </label>
+        )}
         </>)}
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
           <button type="submit" className="d-btn prim">Guardar ajustes</button>

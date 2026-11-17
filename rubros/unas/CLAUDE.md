@@ -4,17 +4,32 @@ Leé antes el `CLAUDE.md` raíz y `BRD-13-unas.md` (Proyecto ACMIAS).
 
 ## Dónde está cada cosa
 - Usa la **agenda genérica** de la barbería (`src/lib/rubros/barberia/`): turnos, huecos, lista de espera, bloqueos, sellos y métricas. El estado es `EstadoAgenda` con `rubro: 'unas'`.
-- Lo propio del rubro: `src/lib/rubros/unas/` (`tipos.ts` con Diseno y EleccionDiseno, `logica.ts`, `datos-ejemplo.ts` con 3 manicuristas, 7 servicios, 15 esmaltes y 15 diseños).
-- El diseño elegido queda en `Turno.diseno` (diseño del catálogo, enlace de Pinterest, captura, forma y nota).
-- Pantallas: `src/components/unas/` (ReservaUnas, MuestraUnas, DisenoCita, PanelDisenos, SitioUnas). El panel es `PanelBarberia` con la pestaña "Diseños" y la ficha "Para esta cita"; el enlace de la clienta es `GestionTurno` con "Cambiar diseño".
+- Lo propio del rubro, en `src/lib/rubros/unas/`:
+  - `tipos.ts`: Diseno con carpeta, Adicional, Opinion, CobroSalon, PagoTurno;
+  - `logica.ts`;
+  - `datos-ejemplo.ts`.
+- El turno guarda `diseno` (foto de referencia y nota), `adicionales` (ids) y `pago` (forma de pago y estado de la seña).
+- Pantallas, en `src/components/unas/`:
+  - `ReservaUnas` (inicio + reserva) e `InicioSalon` (carpetas y opiniones);
+  - `DisenoCita` (galería, detalle de la cita, estrellas);
+  - `PanelDisenos` (Diseños, Precios y seña, Opiniones);
+  - `TurnoUnas` (enlace de la clienta: seña pendiente y opinión);
+  - `SitioUnas`.
+- El panel es `PanelBarberia` con tres pestañas extra y la ficha "Para esta cita".
 - Pruebas: `tests/unas.spec.ts`. Guion: `docs/demos/unas.md`.
 
-## Flujo de la clienta
-Con quién → servicio → día y hora → diseño → confirmar. En el diseño, en este orden: trabajos de quien la atiende, lo que se hace en el equipo y su idea de Pinterest (enlace y captura opcional). Todo queda en la cita.
+## Flujo (definido por Maikel y Marilyn, 16 nov 2026)
+1. **Inicio:** catálogo para mirar en tres carpetas (Diseños del salón, Inspiraciones, Tendencias 2027), opiniones con estrellas y botón "Reservar turno".
+2. **Servicio**, con su precio.
+3. **¿Querés agregar un diseño?:** lista de adicionales con precio (muñequitos, princesita…). Es opcional y la dueña la puede apagar.
+4. **Foto de referencia:** opcional, de las mismas carpetas, con la opción "No, otro / sin foto". No se arma el diseño en la página.
+5. **Día y hora**, con un filtro opcional de manicurista.
+6. **Forma de pago del resto** (efectivo o Mercado Pago). La **seña** se paga siempre por el medio de la dueña (alias o enlace) y la clienta manda el **comprobante por WhatsApp**.
+7. **La dueña confirma la seña** en "Para preparar"; con eso el turno pasa a confirmado.
 
 ## Reglas
-1. Los diseños de la demo son **ilustraciones SVG**; en la versión real van las fotos de los trabajos (con permiso de la clienta si se ven sus manos).
-2. Los colores de esmalte son datos de producto del catálogo, no colores de la interfaz: la interfaz usa solo el motor de marca.
-3. Pinterest: solo se guarda el enlace (pin.it y dominios de Pinterest) y, si la clienta quiere, una captura achicada en su teléfono. No se descargan imágenes de Pinterest.
-4. La nota es para gustos del diseño (largo, colores, evento). No pedir datos de salud.
-5. Fuera de la demo (próximamente): fotos reales del portfolio, cobro de la seña, recordatorio automático, sincronizar la cita entre teléfonos (Neon).
+1. Sin pasarela de pago: alias o enlace y comprobante por WhatsApp. El cobro integrado es un módulo "próximamente".
+2. En la demo, los diseños son **ilustraciones SVG**. En la versión real, la dueña sube sus fotos. En Inspiraciones van fotos propias o con permiso; de las ajenas se guarda solo el enlace al pin.
+3. Las opiniones de la demo son de ejemplo y lo dicen. Las reales las deja la clienta desde su turno, solo después de la cita y una por turno; la dueña puede ocultarlas.
+4. Los colores de esmalte son datos de producto del catálogo, no colores de la interfaz.
+5. La nota es para gustos del diseño. No pedir datos de salud.

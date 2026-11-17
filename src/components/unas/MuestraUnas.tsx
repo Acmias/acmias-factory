@@ -99,8 +99,12 @@ function Detalle({ patron, i, x, w, h, c1, c2, gid }: { patron: Patron; i: numbe
   }
 }
 
-export function MuestraUnas({ diseno, titulo, className }: { diseno: Pick<Diseno, 'patron' | 'forma' | 'esmaltes'>; titulo?: string; className?: string }) {
+export function MuestraUnas({ diseno, titulo, className }: { diseno: Pick<Diseno, 'patron' | 'forma' | 'esmaltes'> & { foto?: string }; titulo?: string; className?: string }) {
   const gid = useId().replace(/:/g, '');
+  if (diseno.foto) {
+    // eslint-disable-next-line @next/next/no-img-element
+    return <img src={diseno.foto} alt={titulo ?? 'Foto del diseño'} className={`${className ?? 'un-muestra'} un-foto`} />;
+  }
   const colores = diseno.esmaltes.map((id) => esmalte(id)?.color ?? '#ccc');
   const [c0, c1 = c0, c2 = c1] = colores;
   return (

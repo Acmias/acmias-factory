@@ -1,10 +1,18 @@
 # Guion de demo · Uñas (5 minutos)
 
-1. **Portal del vendedor:** elegí "Uñas", cargá nombre, colores y WhatsApp → "Abrir demo".
-2. **Reserva desde el celular de la dueña:** "¿Con quién te las hacés?" con los trabajos de cada manicurista. Elegí a Sofía, un semipermanente y un horario.
-3. **El diseño (el momento fuerte):** primero los trabajos de Sofía, después los del equipo y al final "Tu idea de Pinterest". Elegí "Flores lilas", pegá un enlace de Pinterest y escribí "el dorado solo en el anular".
-4. **Confirmación:** "Lo que Sofía ya tiene en tu cita", con los esmaltes, la forma, el pin y el WhatsApp con el diseño.
-5. **Panel → Diseños:** "Para preparar hoy", con los esmaltes del día y cada cita con su diseño. Tocá la cita: "Para esta cita", la nota y lo que se hizo la última vez.
-6. **Catálogo:** cargá un diseño nuevo de una manicurista y mostrá que aparece al reservar.
+1. **Portal del vendedor:** elegí "Uñas", cargá el nombre, los colores y el WhatsApp, y tocá "Abrir demo".
+2. **Inicio, en el celular:** mostrá las tres carpetas (Diseños del salón, Inspiraciones y Tendencias 2027) y las opiniones con estrellas.
+3. **Reservar turno:**
+   1. Elegí "Esmaltado semipermanente" y mirá el precio.
+   2. En "¿Querés agregar un diseño?", tocá Muñequitos: el total se actualiza.
+   3. Marcá una foto de Tendencias 2027 como referencia, o elegí "No, otro".
+4. **Horario y pago:** elegí un horario, después "Efectivo", y reservá.
+5. **El momento fuerte:**
+   - aparece "Falta la seña", con el alias para copiar;
+   - "Mandar comprobante por WhatsApp" abre el chat con el turno ya escrito.
+6. **Panel → Diseños:**
+   - en "Para preparar", el turno aparece como "Mandó el comprobante": tocá "Confirmar seña";
+   - la ficha muestra el servicio, el adicional, la foto, el total y la seña.
+7. **Panel → Precios y seña:** la dueña apaga o enciende la lista de adicionales, cambia los precios, el alias y el porcentaje de la seña.
 
-Cierre: "Se terminaron los audios con capturas de Pinterest a las 11 de la noche: cada clienta llega con su diseño en la cita."
+Cierre: "Se terminaron los audios para coordinar: la clienta reserva, ve el precio, paga la seña y vos solo confirmás."
