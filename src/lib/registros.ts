@@ -10,7 +10,7 @@ import { z } from 'zod';
  * Sin base, en desarrollo y pruebas, se usa una memoria local con registros ficticios.
  */
 
-export const RUBROS_REGISTRO = ['restaurante', 'repuestos', 'tienda', 'barberia', 'consultorio', 'ferreteria', 'autos', 'inmobiliaria', 'contador', 'hotel', 'colegio', 'unas'] as const;
+export const RUBROS_REGISTRO = ['restaurante', 'repuestos', 'tienda', 'barberia', 'consultorio', 'ferreteria', 'autos', 'inmobiliaria', 'contador', 'hotel', 'colegio', 'unas', 'consorcio'] as const;
 const HEX = /^#[0-9A-Fa-f]{6}$/;
 const LOGO = /^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/=]+$/;
 export const MAX_LOGO = 400_000; // caracteres del data URL (~300 KB de imagen)
@@ -70,6 +70,7 @@ function asegurarTabla() {
 const memoria: Registro[] = [
   { id: 'r-ejemplo-1', negocio: 'Trattoria Don Bruno', rubro: 'restaurante', colorPrincipal: '#1F5135', colorSecundario: '#E9B44C', whatsapp: '5491155550001', email: 'demo@ejemplo.com', caso: 'Quieren la carta con QR por mesa y pedidos por WhatsApp.', creado: '2026-11-06T14:10:00.000Z', ejemplo: true },
   { id: 'r-ejemplo-2', negocio: 'La Parrilla del Puerto', rubro: 'restaurante', colorPrincipal: '#7A1F1F', colorSecundario: '#F2C14E', whatsapp: '5491155550002', email: 'demo@ejemplo.com', caso: 'Delivery propio y subir precios rápido.', creado: '2026-11-07T19:25:00.000Z', ejemplo: true },
+  { id: 'r-ejemplo-13', negocio: 'Administración Del Oeste', rubro: 'consorcio', colorPrincipal: '#1F3A5F', colorSecundario: '#F2B544', whatsapp: '5491155550013', email: 'demo@ejemplo.com', caso: 'Tres edificios en Caseros: cargar gastos, liquidar expensas, cobrar por Mercado Pago a la cuenta de cada consorcio y avisar por WhatsApp.', creado: '2026-11-20T13:00:00.000Z', ejemplo: true },
   { id: 'r-ejemplo-12', negocio: 'Estudio Nácar Uñas', rubro: 'unas', colorPrincipal: '#7A2E4D', colorSecundario: '#F3C6D3', whatsapp: '5491155550012', email: 'demo@ejemplo.com', caso: 'Que la clienta elija con quién, cuándo y qué diseño quiere, y que la manicurista tenga todo en la cita antes de atender.', creado: '2026-11-16T18:40:00.000Z', ejemplo: true },
   { id: 'r-ejemplo-11', negocio: 'Colegio Los Aromos', rubro: 'colegio', colorPrincipal: '#2B3A67', colorSecundario: '#F2B134', whatsapp: '5491155550011', email: 'demo@ejemplo.com', caso: 'Queremos saber qué familias leyeron cada comunicado, juntar las autorizaciones sin papelitos y ordenar las cuotas.', creado: '2026-11-11T01:00:00.000Z', ejemplo: true },
   { id: 'r-ejemplo-10', negocio: 'Hotel Costa Serena', rubro: 'hotel', colorPrincipal: '#123B4A', colorSecundario: '#E8A54B', whatsapp: '5491155550010', email: 'demo@ejemplo.com', caso: 'Queremos que el huésped pida room service, toallas o mantenimiento desde el QR de la habitación, sin llamar a recepción.', creado: '2026-11-10T23:40:00.000Z', ejemplo: true },

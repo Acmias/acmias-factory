@@ -20,6 +20,7 @@ export const NOMBRE_RUBRO_AVISO: Record<Registro['rubro'], string> = {
   barberia: 'Barbería o salón',
   consultorio: 'Consultorio',
   unas: 'Uñas (manicuría)',
+  consorcio: 'Administración de consorcios',
   ferreteria: 'Ferretería',
   autos: 'Autos y motos',
   inmobiliaria: 'Inmobiliaria',
