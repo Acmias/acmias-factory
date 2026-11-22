@@ -799,9 +799,11 @@ button { cursor: pointer; }
 .alertas li.esperando { background: #f5f6f8; }
 .alertas li.avisar { background: #e9f6ee; }
 .alertas li.bloq { background: #f5f6f8; }
-.bl-form { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; align-items: end; }
-.bl-form label { display: grid; gap: 6px; font-weight: 600; font-size: 14px; }
-.bl-form .bl-check { display: flex; align-items: center; gap: 8px; min-height: 46px; }
+.bl-form { display: flex; flex-wrap: wrap; gap: 14px 16px; align-items: end; margin: 6px 0 12px; }
+.bl-form label { display: grid; gap: 6px; font-weight: 600; font-size: 14px; flex: 1 1 170px; min-width: 0; }
+.bl-form .c-inp { width: 100%; min-width: 0; box-sizing: border-box; }
+.bl-form .bl-check { display: flex; align-items: center; gap: 8px; min-height: 46px; flex: 0 0 auto; white-space: nowrap; }
+.bl-form button[type="submit"] { flex: 0 0 auto; min-height: 46px; padding-inline: 24px; justify-content: center; text-align: center; }
 .bl-form .bl-check input { width: 20px; height: 20px; }
 .aj-dias { border: 1px solid #e3e3e8; border-radius: 12px; padding: 10px 14px; display: flex; flex-wrap: wrap; gap: 6px 16px; }
 .aj-dias legend { font-weight: 600; padding: 0 4px; }
