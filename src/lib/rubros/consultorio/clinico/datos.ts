@@ -1,9 +1,10 @@
 import { precioEjemplo } from '@/lib/rubros/restaurante/datos-ejemplo';
 import { DIA_MS, claveDia } from '@/lib/rubros/barberia/agenda';
 import type { EstadoAgenda } from '@/lib/rubros/barberia/tipos';
-import type { EstadoClinico, Evolucion, FichaClinica, Foto, ItemPresupuesto, PasoChecklist, PermisosImagen, Presupuesto, Resultado } from './tipos';
+import { NINOS, PARTICULAR } from '@/lib/rubros/consultorio/datos-ejemplo';
+import type { Alquiler, Cobro, EstadoClinico, Evolucion, FichaClinica, Foto, Insumo, ItemPresupuesto, Llegada, MedioPago, PasoChecklist, PermisosImagen, Presupuesto, Resultado } from './tipos';
 
-export const VERSION_CLINICO = 1;
+export const VERSION_CLINICO = 2;
 export const PIN_DEMO = '1234';
 
 /** Combos de indicaciones: un toque arma receta, certificado, orden y control (CLI-07). */
@@ -13,6 +14,7 @@ export const COMBOS: { id: string; nombre: string; items: { tipo: 'receta' | 'ce
   { id: 'anual', nombre: 'Control anual', items: [{ tipo: 'orden', texto: 'Hemograma, glucemia, perfil lipídico y orina completa' }, { tipo: 'indicacion', texto: 'Traer los resultados al próximo control.' }], control: 30 },
   { id: 'apto', nombre: 'Apto físico', items: [{ tipo: 'certificado', texto: 'Apto para actividad física recreativa' }] },
   { id: 'nutricion', nombre: 'Plan nutricional', items: [{ tipo: 'indicacion', texto: 'Plan de alimentación con 4 comidas y 2 colaciones. Registro semanal en el portal.' }], control: 30 },
+  { id: 'ninosano', nombre: 'Control de niño sano', items: [{ tipo: 'indicacion', texto: 'Crecimiento y desarrollo acordes a la edad. Próximo control en 6 meses.' }, { tipo: 'certificado', texto: 'Apto para actividad física escolar' }], control: 180 },
 ];
 
 /** Plantillas de evolución por especialidad (CLI-02). */
@@ -20,7 +22,18 @@ export const PLANTILLAS: Record<string, { campos: string[]; dictado: string }> =
   'm-mendez': { campos: ['Motivo de consulta', 'Examen y evolución', 'Diagnóstico'], dictado: 'Paciente con fiebre de 38,1 °C desde hace 3 días y dolor de garganta. Faringe eritematosa, sin adenopatías dolorosas. Buen estado general.' },
   'm-castillo': { campos: ['Motivo de consulta', 'Evolución y hábitos', 'Objetivo'], dictado: 'Buena adherencia al plan durante el mes. Bajó 1,2 kg. Se ajustan colaciones de la tarde y se suma una caminata de 30 minutos.' },
   'm-rios': { campos: ['Motivo de consulta', 'Evaluación', 'Plan'], dictado: 'Consulta por líneas de expresión en frente y entrecejo. Piel sin lesiones activas. Se explica el procedimiento y se entrega presupuesto.' },
+  'm-paz': { campos: ['Motivo de consulta', 'Examen, peso y talla', 'Diagnóstico'], dictado: 'Control de niño sano. Peso y talla en percentil 50. Desarrollo acorde a la edad. Se conversa sobre alimentación y sueño.' },
 };
+
+/** Insumos de estética con stock, mínimo y costo (para el margen por procedimiento). */
+export const INSUMOS: [string, string, string, number, number, number][] = [
+  ['toxina', 'Toxina botulínica (vial)', 'viales', 6, 3, 60],
+  ['jeringa', 'Ácido hialurónico (jeringa)', 'jeringas', 2, 4, 70],
+  ['anestesia', 'Anestesia tópica', 'pomos', 9, 3, 6],
+  ['agujas', 'Agujas y cánulas', 'cajas', 12, 4, 4],
+  ['gasas', 'Gasas estériles', 'paquetes', 25, 10, 1],
+  ['sutura', 'Material de sutura', 'kits', 1, 2, 40],
+];
 
 /** Lista corta de diagnósticos de ejemplo (CIE-10). */
 export const DIAGNOSTICOS = ['J02.9 Faringitis aguda', 'J11.1 Gripe', 'I10 Hipertensión esencial', 'E11.9 Diabetes tipo 2', 'E66.9 Obesidad', 'Z00.0 Control general de salud', 'L57.4 Envejecimiento de la piel'];
@@ -34,6 +47,8 @@ export interface PlantillaProcedimiento {
   noIncluye: string;
   controles: number[];
   checklist: string[];
+  /** Insumos que usa cada vez: [id del insumo, cantidad]. */
+  consumos: [string, number][];
 }
 
 export const PLANTILLAS_PROC: PlantillaProcedimiento[] = [
@@ -42,18 +57,21 @@ export const PLANTILLAS_PROC: PlantillaProcedimiento[] = [
     items: [['Honorarios médicos', 90], ['Producto', 110], ['Control a los 15 días', 0]],
     incluye: 'Consulta previa, procedimiento y un control a los 15 días.', noIncluye: 'Retoques fuera del control incluido.',
     controles: [15], checklist: ['Consentimiento informado firmado', 'Indicaciones previas enviadas', 'Foto de antes tomada'],
+    consumos: [['toxina', 1], ['agujas', 1], ['gasas', 1]],
   },
   {
     id: 'relleno', nombre: 'Relleno con ácido hialurónico', servicioId: 'q-toxina',
     items: [['Honorarios médicos', 100], ['Producto (1 jeringa)', 140], ['Anestesia tópica', 15], ['Controles a los 7 y 30 días', 0]],
     incluye: 'Procedimiento, anestesia tópica y dos controles.', noIncluye: 'Jeringas adicionales si hicieran falta.',
     controles: [7, 30], checklist: ['Consentimiento informado firmado', 'Indicaciones previas enviadas', 'Foto de antes tomada'],
+    consumos: [['jeringa', 1], ['anestesia', 1], ['agujas', 1], ['gasas', 1]],
   },
   {
     id: 'rino', nombre: 'Rinoplastia', servicioId: 'q-toxina',
     items: [['Honorarios del cirujano y ayudante', 1400], ['Anestesia', 350], ['Quirófano y materiales', 700], ['Estudios previos', 120], ['3 controles después', 0]],
     incluye: 'Cirugía, anestesia, internación del día y tres controles.', noIncluye: 'Medicación posterior y estudios fuera de los indicados.',
     controles: [7, 30, 90], checklist: ['Estudios prequirúrgicos cargados', 'Apto cardiológico', 'Consentimiento informado firmado', 'Ayuno de 8 horas confirmado', 'Foto de antes tomada'],
+    consumos: [['sutura', 1], ['gasas', 3], ['agujas', 1]],
   },
 ];
 
@@ -69,6 +87,10 @@ const EVOL: Record<string, string[]> = {
     'Entrevista inicial. Se acuerda un plan de alimentación con objetivos semanales.',
     'Seguimiento: buena adherencia al plan. Se ajustan colaciones.',
     'Registro alimentario completo. Se suma actividad física 3 veces por semana.',
+  ],
+  'm-paz': [
+    'Control de niño sano: peso y talla acordes. Desarrollo esperado para la edad.',
+    'Cuadro respiratorio leve. Se indican medidas generales y control si hay fiebre.',
   ],
   'm-rios': [
     'Evaluación estética. Se explica el procedimiento, cuidados previos y posteriores. Se entrega presupuesto.',
@@ -118,7 +140,7 @@ export function crearClinico(agenda: EstadoAgenda, moneda: string, ahora = Date.
   const atendidos = agenda.turnos.filter((t) => t.estado === 'atendido' && +new Date(t.fin) <= ahora);
   const evoluciones: Evolucion[] = atendidos.map((t, i) => {
     const textos = EVOL[t.profId] ?? EVOL['m-mendez'];
-    return { id: `ev${i + 1}`, pacienteId: t.clienteId, profId: t.profId, turnoId: t.id, fecha: t.fin, motivo: t.profId === 'm-castillo' ? 'Seguimiento nutricional' : t.profId === 'm-rios' ? 'Evaluación estética' : 'Consulta clínica', texto: textos[Math.floor(r() * textos.length)], agregados: [] };
+    return { id: `ev${i + 1}`, pacienteId: t.clienteId, profId: t.profId, turnoId: t.id, fecha: t.fin, motivo: t.profId === 'm-castillo' ? 'Seguimiento nutricional' : t.profId === 'm-rios' ? 'Evaluación estética' : t.profId === 'm-paz' ? 'Consulta pediátrica' : 'Consulta clínica', texto: textos[Math.floor(r() * textos.length)], agregados: [] };
   });
   const docs = evoluciones.filter((_, i) => i % 4 === 0).map((e, i) => ({
     id: `doc${i + 1}`,
@@ -188,6 +210,56 @@ export function crearClinico(agenda: EstadoAgenda, moneda: string, ahora = Date.
     permisos[pac] = { historia: true, academico: k !== 2, publicidadSinRostro: k === 1, publicidadConRostro: false, firmado: iso(antes - 1) };
   });
 
+  // Pediatría: fecha de nacimiento y vacunas que la médica dejó registradas como pendientes.
+  cl.filter((c) => NINOS.includes(c.nombre)).forEach((c, k) => {
+    const f = fichas.find((x) => x.pacienteId === c.id)!;
+    Object.assign(f, { nacimiento: claveDia(ahora - (6 - k) * 365 * DIA_MS - k * 40 * DIA_MS), antecedentes: 'Embarazo y parto sin complicaciones.', ...(k >= 2 ? { vacunasPendientes: ['Refuerzo del calendario de los 5 años (según registro)'], proximoControl: dia(-30 - k * 20) } : { proximoControl: dia(60 + k * 30) }) });
+  });
+
+  // Nutrición: controles de peso mensuales para graficar la evolución y medir objetivos.
+  const nutri = [...new Set(agenda.turnos.filter((t) => t.profId === 'm-castillo').map((t) => t.clienteId))].slice(0, 6);
+  nutri.forEach((pid, k) => {
+    const inicial = 84 + k * 3;
+    const objetivo = inicial - 6;
+    const baja = [0, 1.4, 2.6, 3.5, 4.1 + (k % 2) * 2.3];
+    baja.forEach((b, j) => resultados.push({ id: `rn${k}-${j}`, pacienteId: pid, profId: 'm-castillo', fecha: iso(-120 + j * 30), estudio: 'Control de peso', origen: 'paciente', estado: 'revisado', valores: [{ nombre: 'Peso', valor: Math.round((inicial - b) * 10) / 10, unidad: 'kg', rango: [0, objetivo] }] }));
+  });
+
+  // Caja de hoy: consultas particulares ya cobradas, la seña de Ana y un alquiler.
+  const medios: MedioPago[] = ['efectivo', 'transferencia', 'tarjeta'];
+  const precio = new Map(agenda.servicios.map((s) => [s.id, s.precio]));
+  const hoyClave = claveDia(ahora);
+  const cobros: Cobro[] = agenda.turnos
+    .filter((t) => t.estado === 'atendido' && claveDia(t.inicio) === hoyClave && (t.cobertura ?? PARTICULAR) === PARTICULAR && (precio.get(t.servicioId) ?? 0) > 0)
+    .map((t, i) => ({ id: `cb${i + 1}`, fecha: t.fin, concepto: agenda.servicios.find((s) => s.id === t.servicioId)?.nombre ?? 'Consulta', monto: precio.get(t.servicioId) ?? 0, medio: medios[i % 3], origen: 'consulta' as const, profId: t.profId, pacienteId: t.clienteId, turnoId: t.id }));
+  const hoyA = (h: number, m: number) => { const d = new Date(ahora); d.setHours(h, m, 0, 0); return d.toISOString(); };
+  cobros.push(
+    { id: 'cb-cert', fecha: hoyA(9, 40), concepto: 'Certificado sin turno', monto: precioEjemplo(12, moneda), medio: 'efectivo', origen: 'manual' },
+    { id: 'cb-saldo', fecha: hoyA(9, 15), concepto: 'Saldo · Relleno con ácido hialurónico', monto: precioEjemplo(180, moneda), medio: 'transferencia', origen: 'presupuesto', profId: 'm-rios', pacienteId: id(26) },
+  );
+  const pr7 = presupuestos.find((p) => p.id === 'pr7')!;
+  cobros.push({ id: 'cb-sena', fecha: iso(-7), concepto: `Seña · ${pr7.procedimiento}`, monto: Math.round(pr7.items.reduce((a, i) => a + i.monto, 0) * 0.3), medio: 'link', origen: 'presupuesto', profId: 'm-rios', pacienteId: pr7.pacienteId });
+
+  // Alquiler de consultorios por hora a colegas.
+  const hora0 = (dias: number, h: number) => { const d = new Date(ahora + dias * DIA_MS); d.setHours(h, 0, 0, 0); return d.toISOString(); };
+  const ph = precioEjemplo(18, moneda);
+  const alquileres: Alquiler[] = [
+    { id: 'al1', espacioId: 'e2', colega: 'Lic. Sofía Benítez', especialidad: 'Psicología', inicio: hora0(0, 15), fin: hora0(0, 19), monto: ph * 4, cobrado: false },
+    { id: 'al2', espacioId: 'e2', colega: 'Dr. Martín Sosa', especialidad: 'Cirugía plástica', inicio: hora0(2, 9), fin: hora0(2, 13), monto: ph * 4, cobrado: false },
+    { id: 'al3', espacioId: 'e2', colega: 'Lic. Sofía Benítez', especialidad: 'Psicología', inicio: hora0(-7, 15), fin: hora0(-7, 19), monto: ph * 4, cobrado: true },
+  ];
+  cobros.push({ id: 'cb-al3', fecha: hora0(-7, 19), concepto: 'Alquiler Consultorio 2 · Lic. Sofía Benítez', monto: ph * 4, medio: 'transferencia', origen: 'alquiler' });
+
+  // Sala de espera: los que llegaron para los turnos de la próxima media hora.
+  const proximos = agenda.turnos
+    .filter((t) => claveDia(t.inicio) === hoyClave && (t.estado === 'confirmado' || t.estado === 'reservado') && +new Date(t.inicio) <= ahora + 100 * 60_000 && +new Date(t.inicio) >= ahora - 30 * 60_000)
+    .sort((a, b) => a.inicio.localeCompare(b.inicio));
+  // Dos esperan a la médica clínica (la vista inicial de la demo) y uno a otro profesional.
+  const llegadas: Llegada[] = [...proximos.filter((t) => t.profId === 'm-mendez').slice(0, 2), ...proximos.filter((t) => t.profId !== 'm-mendez').slice(0, 1)]
+    .map((t, i) => ({ turnoId: t.id, fecha: new Date(ahora - (28 - i * 9) * 60_000).toISOString() }));
+
+  const insumos: Insumo[] = INSUMOS.map(([id, nombre, unidad, stock, minimo, costo]) => ({ id, nombre, unidad, stock, minimo, costo: precioEjemplo(costo, moneda) }));
+
   const tomas = cl.find((c) => c.nombre === 'Tomás Martínez');
   return {
     version: VERSION_CLINICO,
@@ -209,5 +281,13 @@ export function crearClinico(agenda: EstadoAgenda, moneda: string, ahora = Date.
     compartidos: [],
     familias: tomas ? { [id(0)]: [tomas.id] } : {},
     invitaciones: [],
+    preconsultas: [],
+    llegadas,
+    cobros,
+    cierres: [],
+    porcConsultorio: 30,
+    espacios: [{ id: 'e1', nombre: 'Consultorio 1', precioHora: ph }, { id: 'e2', nombre: 'Consultorio 2', precioHora: ph }],
+    alquileres,
+    insumos,
   };
 }

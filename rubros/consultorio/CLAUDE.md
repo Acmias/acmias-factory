@@ -16,11 +16,17 @@
 | Validación pública del QR (sin contenido) | `/d/[slug]/validar#v=…` · `ValidarDocumento.tsx` |
 | Simulador de WhatsApp con secretaria virtual de respuestas fijas | `Simulador.tsx` |
 | Gráficos de una serie con "Ver como tabla" (skill `dataviz`) | `Graficos.tsx` |
+| Preconsulta desde el portal (motivo, medicación, alergias, estudios, consentimiento) | `PortalPaciente.tsx` → se ve en la consulta y los estudios van a Resultados |
+| Check-in con QR de recepción y sala de espera en vivo | `/d/[slug]/checkin` · `CheckIn.tsx`; sala en la pestaña Consultas |
+| Récipe impreso de respaldo, listo para firmar y sellar, con QR | `/d/[slug]/recipe/[id]` · `RecipeImpreso.tsx` |
+| Administración: caja del día con cierre, honorarios por profesional, alquiler de consultorios, insumos con semáforo | `Administracion.tsx` |
+| Margen por procedimiento (descuenta insumos al registrar el procedimiento) | `Presupuestos.tsx`, `Reportes.tsx` |
+| Paquetes por especialidad: clínica, pediatría (Dra. Carla Paz), nutrición y estética | `Reportes.tsx` → "Mi especialidad" según "Ver como" |
 | Pruebas | `tests/consultorio.spec.ts`, `tests/consultorio-clinico.spec.ts` (390 y 1440 px) |
 
 **Separación de datos:** la agenda se guarda en `acmias:demo:{slug}` y sigue sin campos clínicos (lo verifica una prueba). Lo clínico va en `acmias:demo:{slug}:clinico`, se borra con "Reiniciar demo" y con la demo.
 
-**Falta (después del Demo Day):** preconsulta, check-in con QR y cola en vivo, récipe impreso, versiones editables de ítems, caja, alquiler de consultorio, stock y margen, permisos configurables, resumen semanal, pediatría y otros paquetes de especialidad.
+**Falta:** liquidación ante obras sociales, factura electrónica, versiones editables de ítems de un presupuesto ya enviado, permisos configurables por rol, resumen semanal por WhatsApp, paquetes de odontología, psicología, ginecología y cardiología (no hay profesionales de esas especialidades en la demo).
 
 ## 2. Principios de experiencia (UX)
 

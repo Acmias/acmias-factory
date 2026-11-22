@@ -5,10 +5,9 @@ import Link from 'next/link';
 import { Icono } from '@/components/Icono';
 import { useAhora } from '@/components/barberia/useBarberia';
 import { formatoPrecio } from '@/lib/utiles';
-import { DIA_MS, claveDia, turnosDelDia } from '@/lib/rubros/barberia/agenda';
+import { DIA_MS, claveDia, fechaCorta, turnosDelDia } from '@/lib/rubros/barberia/agenda';
 import { DIAGNOSTICOS } from '@/lib/rubros/consultorio/clinico/datos';
-import { NOMBRE_DOC, invitar, listasDeTrabajo, mezclaCoberturas, porSemana, statsPresupuestos } from '@/lib/rubros/consultorio/clinico/logica';
-import type { Variante } from '@/lib/rubros/consultorio/clinico/tipos';
+import { NOMBRE_DOC, edad, salaDeEspera, invitar, listasDeTrabajo, margenPorProcedimiento, mezclaCoberturas, nutricion, pediatria, porSemana, statsPresupuestos } from '@/lib/rubros/consultorio/clinico/logica';
 import { GraficoBarras, GraficoLinea } from './Graficos';
 import type { PropsClinico } from './comun';
 
@@ -47,6 +46,7 @@ export function Inicio(props: PropsClinico) {
         <div className="cl-grid">
           <div className="cl-kpi"><strong>{hoy.length}</strong><span>turnos hoy</span></div>
           <div className="cl-kpi"><strong>{hoy.filter((t) => t.estado === 'atendido').length}</strong><span>atendidos</span></div>
+          <div className="cl-kpi"><strong>{salaDeEspera(agenda, clinico).length}</strong><span>en sala de espera</span></div>
           <div className="cl-kpi"><strong>{hoy.filter((t) => t.estado === 'ausente').length}</strong><span>ausentes</span></div>
           <div className="cl-kpi"><strong>{formatoPrecio(cobrado, config.moneda)}</strong><span>en consultas atendidas</span></div>
         </div>
@@ -78,7 +78,7 @@ type Seccion = 'ingresos' | 'pacientes' | 'agenda' | 'clinicos' | 'presupuestos'
 
 /** Reportes R1 a R7 con datos ficticios de la demo (últimas 5 semanas). */
 export function Reportes(props: PropsClinico) {
-  const { agenda, clinico, config } = props;
+  const { agenda, clinico, config, medico } = props;
   const ahora = useAhora();
   const [sec, setSec] = useState<Seccion>('ingresos');
   const sem = porSemana(agenda, ahora);
@@ -86,6 +86,7 @@ export function Reportes(props: PropsClinico) {
   const l = listasDeTrabajo(agenda, clinico, ahora);
   const st = statsPresupuestos(clinico, ahora);
   const fmt = (n: number) => formatoPrecio(n, config.moneda);
+  const fechaCortaDe = (iso: string) => { const d = new Date(iso); return `${d.getDate()}/${d.getMonth() + 1}`; };
   const SECC: [Seccion, string][] = [['ingresos', 'Ingresos'], ['pacientes', 'Pacientes'], ['agenda', 'Agenda'], ['clinicos', 'Clínicos'], ['presupuestos', 'Presupuestos'], ['especialidad', 'Mi especialidad']];
 
   function exportar() {
@@ -106,7 +107,11 @@ export function Reportes(props: PropsClinico) {
   const nuevos = agenda.clientes.filter((c) => +new Date(c.creado) > ahora - 30 * DIA_MS).length;
   const diagnosticos = DIAGNOSTICOS.map((d) => [d, clinico.evoluciones.filter((e) => e.diagnostico === d).length] as const).filter((x) => x[1]).sort((a, b) => b[1] - a[1]);
   const docs = (['receta', 'certificado', 'orden'] as const).map((t) => [NOMBRE_DOC[t], clinico.documentos.filter((d) => d.tipo === t).length] as const);
-  const variante: Variante = clinico.variante;
+  const margen = margenPorProcedimiento(clinico);
+  const ped = pediatria(agenda, clinico, ahora);
+  const nut = nutricion(agenda, clinico, ahora);
+  const pid = medico?.id ?? 'm-mendez';
+  const nombreEsp = pid === 'm-rios' ? 'medicina estética' : pid === 'm-paz' ? 'pediatría' : pid === 'm-castillo' ? 'nutrición' : 'clínica médica';
 
   return (
     <section className="d-card" aria-labelledby="t-rep">
@@ -180,6 +185,15 @@ export function Reportes(props: PropsClinico) {
             <div className="cl-kpi"><strong>{fmt(st.montoAbierto)}</strong><span>en presupuestos abiertos</span></div>
           </div>
           <figure className="d-card" style={{ margin: 0 }}>
+            <figcaption><strong style={{ fontSize: 17 }}>Margen por procedimiento</strong><br /><span className="cl-gris">Presupuestos aceptados, menos el costo de los insumos. Sin honorarios de terceros.</span></figcaption>
+            <div style={{ overflowX: 'auto', marginTop: 10 }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14, minWidth: 520 }}>
+                <thead><tr><th style={{ textAlign: 'left', padding: 6 }}>Procedimiento</th><th style={{ textAlign: 'right', padding: 6 }}>Cantidad</th><th style={{ textAlign: 'right', padding: 6 }}>Ingreso</th><th style={{ textAlign: 'right', padding: 6 }}>Insumos</th><th style={{ textAlign: 'right', padding: 6 }}>Margen</th></tr></thead>
+                <tbody>{margen.map((m) => <tr key={m.nombre}><td style={{ padding: 6, borderTop: '1px solid #eee' }}>{m.nombre}</td><td style={{ padding: 6, borderTop: '1px solid #eee', textAlign: 'right' }}>{m.cantidad}</td><td style={{ padding: 6, borderTop: '1px solid #eee', textAlign: 'right' }}>{fmt(m.ingreso)}</td><td style={{ padding: 6, borderTop: '1px solid #eee', textAlign: 'right' }}>{fmt(m.costo)}</td><td style={{ padding: 6, borderTop: '1px solid #eee', textAlign: 'right', fontWeight: 800 }}>{m.porc} %</td></tr>)}</tbody>
+              </table>
+            </div>
+          </figure>
+          <figure className="d-card" style={{ margin: 0 }}>
             <figcaption><strong style={{ fontSize: 17 }}>Por qué no se aceptan</strong></figcaption>
             <div className="cl-barras" style={{ marginTop: 12 }}>{st.motivos.map(([m, n]) => <div key={m}><span>{m}</span><span className="pista"><span style={{ width: `${(n / st.motivos[0][1]) * 100}%` }} /></span><strong style={{ textAlign: 'right' }}>{n}</strong></div>)}</div>
           </figure>
@@ -188,22 +202,45 @@ export function Reportes(props: PropsClinico) {
 
       {sec === 'especialidad' && (
         <div style={{ display: 'grid', gap: 16 }}>
-          <p className="sub" style={{ margin: 0 }}>Paquete de {variante === 'procedimientos' ? 'medicina estética' : 'clínica médica'}. Cambialo arriba con &quot;Mostrar como&quot;.</p>
-          <div className="cl-grid">
-            {variante === 'procedimientos' ? (
-              <>
-                <ListaInvitar titulo="retoques pendientes" detalle="Toxina hace más de 4 meses, sin turno nuevo." ids={l.retoques} lista="Retoques pendientes" props={props} />
-                <div className="cl-tarea"><strong>{clinico.presupuestos.filter((p) => p.realizado && +new Date(p.realizado) > ahora - 180 * DIA_MS).length}</strong><p>procedimientos en 6 meses</p></div>
-                <div className="cl-tarea"><strong>{clinico.presupuestos.filter((p) => p.controles.some((c) => !c.hecho && +new Date(c.fecha) < ahora)).length}</strong><p>controles posteriores atrasados</p></div>
-              </>
-            ) : (
-              <>
-                <ListaInvitar titulo="crónicos con el control vencido" detalle="Hipertensión, diabetes y otras condiciones que cargaste." ids={l.controlesVencidos} lista="Controles vencidos" props={props} />
-                <div className="cl-tarea"><strong>{clinico.fichas.filter((f) => f.cronico).length}</strong><p>pacientes con control periódico</p></div>
-                <div className="cl-tarea"><strong>{l.fueraDeRango.length}</strong><p>resultados fuera de rango</p></div>
-              </>
-            )}
-          </div>
+          <p className="sub" style={{ margin: 0 }}>Paquete de {nombreEsp}, según el profesional elegido en &quot;Ver como&quot;.</p>
+          {pid === 'm-rios' && (
+            <div className="cl-grid">
+              <ListaInvitar titulo="retoques pendientes" detalle="Toxina hace más de 4 meses, sin turno nuevo." ids={l.retoques} lista="Retoques pendientes" props={props} />
+              <div className="cl-tarea"><strong>{clinico.presupuestos.filter((p) => p.realizado && +new Date(p.realizado) > ahora - 180 * DIA_MS).length}</strong><p>procedimientos en 6 meses</p></div>
+              <div className="cl-tarea"><strong>{clinico.presupuestos.filter((p) => p.controles.some((c) => !c.hecho && +new Date(c.fecha) < ahora)).length}</strong><p>controles posteriores atrasados</p></div>
+              <div className="cl-tarea"><strong>{margen[0] ? `${margen[0].porc} %` : '—'}</strong><p>margen de {margen[0]?.nombre.toLowerCase() ?? 'procedimientos'}</p></div>
+            </div>
+          )}
+          {pid === 'm-paz' && (
+            <>
+              <div className="cl-grid">
+                <ListaInvitar titulo="chicos con el control de niño sano vencido" detalle="Según la fecha de control que dejó registrada la pediatra." ids={ped.controlVencido} lista="Control de niño sano" props={props} />
+                <ListaInvitar titulo="chicos con vacunas pendientes" detalle="Según lo que registró la pediatra en la ficha." ids={ped.vacunas} lista="Vacunas pendientes" props={props} />
+                <div className="cl-tarea"><strong>{ped.ninos}</strong><p>pacientes chicos</p></div>
+              </div>
+              <ul className="cl-lista">
+                {clinico.fichas.filter((f) => f.nacimiento).map((f) => <li key={f.pacienteId} className="cl-fila"><div><strong>{agenda.clientes.find((c) => c.id === f.pacienteId)?.nombre}</strong><small>{edad(f.nacimiento!, ahora)} años · próximo control {f.proximoControl ? fechaCorta(new Date(f.proximoControl + 'T12:00')) : 'sin fecha'}</small></div>{f.vacunasPendientes?.length ? <span className="cl-chip av">Vacunas pendientes</span> : <span className="cl-chip ok">Al día</span>}</li>)}
+              </ul>
+            </>
+          )}
+          {pid === 'm-castillo' && (
+            <>
+              <div className="cl-grid">
+                <div className="cl-tarea"><strong>{nut.pacientes}</strong><p>pacientes con controles de peso</p></div>
+                <div className="cl-tarea"><strong>{nut.bajaPromedio} kg</strong><p>bajaron en promedio desde el primer control</p></div>
+                <div className="cl-tarea"><strong>{nut.objetivo} de {nut.pacientes}</strong><p>llegaron al objetivo que fijaste</p></div>
+                <ListaInvitar titulo="sin seguimiento hace más de un mes" detalle="Dejaron de venir a los controles y no tienen turno." ids={nut.sinSeguimiento} lista="Sin seguimiento nutricional" props={props} />
+              </div>
+              {nut.ejemplo && <GraficoLinea titulo={`Peso de ${agenda.clientes.find((c) => c.id === nut.ejemplo!.id)?.nombre}`} detalle="kg · la línea punteada es el objetivo" puntos={nut.ejemplo.s.map((p) => ({ etiqueta: fechaCortaDe(p.fecha), valor: p.valor }))} formato={(v) => `${Math.round(v)}`} rango={nut.ejemplo.s[0].rango} />}
+            </>
+          )}
+          {pid === 'm-mendez' && (
+            <div className="cl-grid">
+              <ListaInvitar titulo="crónicos con el control vencido" detalle="Hipertensión, diabetes y otras condiciones que cargaste." ids={l.controlesVencidos} lista="Controles vencidos" props={props} />
+              <div className="cl-tarea"><strong>{clinico.fichas.filter((f) => f.cronico).length}</strong><p>pacientes con control periódico</p></div>
+              <div className="cl-tarea"><strong>{l.fueraDeRango.length}</strong><p>resultados fuera de rango</p></div>
+            </div>
+          )}
         </div>
       )}
     </section>

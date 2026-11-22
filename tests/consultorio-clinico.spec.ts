@@ -191,3 +191,115 @@ test('resultados por revisar con gráfico y reportes con listas de trabajo que i
   const todos = await page.evaluate((s) => JSON.parse(localStorage.getItem(`acmias:demo:${s}:clinico`)!).mensajes.map((m: { texto: string; delPaciente?: boolean }) => (m.delPaciente ? '' : m.texto)).join(' '), slug);
   expect(todos).not.toMatch(CLINICO);
 });
+
+test('preconsulta desde el portal y check-in con QR: el paciente ve su lugar y el profesional lo pasa a consulta', async ({ page }) => {
+  const slug = await crearDemo(page, 'Consultorio Oeste');
+  await entrarAlPortal(page, slug);
+  await page.getByRole('button', { name: 'Completar la preconsulta (2 minutos)' }).click();
+  await page.getByRole('button', { name: 'Enviar preconsulta' }).click();
+  await expect(page.getByText('Contanos en pocas palabras por qué venís.')).toBeVisible();
+  await page.getByLabel('¿Por qué venís?').fill('Control de rutina');
+  await page.getByLabel('Estudios anteriores (fotos o PDF)').setInputFiles({ name: 'analisis-octubre.pdf', mimeType: 'application/pdf', buffer: Buffer.from('%PDF-1.4 demo') });
+  await page.getByLabel(/Acepto que el consultorio guarde estos datos/).check();
+  await page.getByRole('button', { name: 'Enviar preconsulta' }).click();
+  await expect(page.getByText('Preconsulta completa')).toBeVisible();
+
+  // Check-in en recepción.
+  await page.goto(`/d/${slug}/checkin`);
+  await page.getByRole('button', { name: /Para la demo: usar a/ }).click();
+  await page.getByRole('button', { name: 'Avisar que llegué' }).click();
+  const lugar = page.getByRole('region', { name: 'Tu lugar en la sala de espera' });
+  await expect(lugar).toContainText(/Faltan? \d+ pacientes? antes que vos|Sos el próximo/);
+  const prof = (await lugar.textContent())!.match(/· ((?:Dra?|Lic)\. [A-ZÁÉÍÓÚ][a-záéíóú]+ [A-ZÁÉÍÓÚ][a-záéíóú]+)/)![1];
+
+  // El profesional lo ve en la sala de espera y lo pasa a consulta.
+  await page.goto(`/d/${slug}/panel`);
+  await page.getByLabel('Ver como').selectOption({ label: prof });
+  await page.getByRole('tab', { name: 'Consultas' }).click();
+  const sala = page.getByRole('list', { name: 'Pacientes en sala de espera' });
+  await expect(sala.getByText(/Espera \d+ min/).first()).toBeVisible();
+  await sala.getByRole('button', { name: 'Pasar a consulta' }).last().click();
+  await expect(page.getByRole('button', { name: 'Firmar y cerrar consulta' }).first()).toBeVisible();
+
+  // El estudio que subió el paciente quedó para revisar.
+  await page.getByLabel('Ver como').selectOption({ label: 'Dra. Laura Méndez' });
+  await page.getByRole('tab', { name: 'Resultados' }).click();
+  await expect(page.getByText(/analisis-octubre\.pdf/)).toBeVisible();
+});
+
+test('administración: caja con cobros y cierre, honorarios, alquiler de consultorio sin superposición, insumos y récipe impreso', async ({ page }) => {
+  const slug = await crearDemo(page, 'Consultorio Este');
+  await page.goto(`/d/${slug}/panel`);
+  await page.getByRole('tab', { name: 'Administración' }).click();
+  await page.getByLabel('Concepto del cobro').fill('Cobro de prueba');
+  await page.getByLabel('Monto del cobro').fill('5000');
+  await page.getByRole('button', { name: /Registrar cobro/ }).click();
+  await expect(page.locator('.cl-fila', { hasText: 'Cobro de prueba' })).toBeVisible();
+  await page.getByRole('button', { name: 'Cerrar la caja de hoy' }).click();
+  await expect(page.getByText(/Caja cerrada a las/)).toBeVisible();
+
+  const secc = page.getByRole('group', { name: 'Secciones de administración' });
+  await secc.getByRole('button', { name: 'Honorarios' }).click();
+  await expect(page.getByRole('columnheader', { name: 'A liquidar al profesional' })).toBeVisible();
+
+  await secc.getByRole('button', { name: 'Alquiler de consultorios' }).click();
+  for (let i = 0; i < 2; i++) {
+    await page.getByLabel('Colega').fill('Lic. Prueba Kinesio');
+    await page.getByLabel('Especialidad').fill('Kinesiología');
+    await page.getByLabel('Día').fill('2026-11-13');
+    await page.getByLabel('Desde').fill('09:00');
+    await page.getByLabel('Hasta').fill('11:00');
+    await page.getByRole('button', { name: 'Reservar consultorio' }).click();
+  }
+  await expect(page.getByText('Ese consultorio ya está alquilado en ese horario.')).toBeVisible();
+  await expect(page.locator('.cl-fila', { hasText: 'Lic. Prueba Kinesio' })).toHaveCount(1);
+
+  await secc.getByRole('button', { name: 'Insumos' }).click();
+  const jeringa = page.locator('.cl-fila', { hasText: 'Ácido hialurónico (jeringa)' });
+  await expect(jeringa).toContainText('Reponer ya');
+  await jeringa.getByLabel(/Cantidad que entra/).fill('10');
+  await jeringa.getByRole('button', { name: 'Entrada' }).click();
+  await expect(jeringa).toContainText('Bien');
+
+  // Récipe impreso de respaldo, listo para firmar y sellar.
+  await page.getByRole('tab', { name: 'Consultas' }).click();
+  await page.getByLabel('Consulta sin turno').selectOption({ label: 'Ana Martínez' });
+  await page.getByRole('button', { name: 'Abrir historia' }).click();
+  await page.getByRole('button', { name: 'Consulta de hoy' }).click();
+  await page.getByLabel('Motivo de consulta').fill('Fiebre');
+  await page.getByLabel('Examen y evolución').fill('Cuadro gripal leve.');
+  await page.getByRole('group', { name: 'Combos de indicaciones' }).getByRole('button', { name: 'Gripe' }).click();
+  await page.getByLabel(/Firmo como/).check();
+  await page.getByRole('button', { name: 'Firmar y cerrar consulta' }).last().click();
+  await page.getByRole('link', { name: /^Imprimir Receta/ }).click();
+  const recipe = page.getByRole('article', { name: /Receta para imprimir/ });
+  await expect(recipe).toContainText('Rp/');
+  await expect(recipe).toContainText('Paracetamol 500 mg');
+  await expect(recipe).toContainText('Firma y sello');
+  await expect(recipe).toContainText('sin validez legal');
+});
+
+test('reportes por especialidad: pediatría, nutrición y margen de estética', async ({ page }) => {
+  const slug = await crearDemo(page, 'Consultorio Sur');
+  await page.goto(`/d/${slug}/panel`);
+  const verComo = page.getByLabel('Ver como');
+
+  await verComo.selectOption({ label: 'Dra. Carla Paz' });
+  await page.getByRole('tab', { name: 'Reportes' }).click();
+  await page.getByRole('group', { name: 'Tipo de reporte' }).getByRole('button', { name: 'Mi especialidad' }).click();
+  await expect(page.getByText('Paquete de pediatría')).toBeVisible();
+  await expect(page.getByText('chicos con el control de niño sano vencido')).toBeVisible();
+  await expect(page.locator('.cl-fila', { hasText: 'Mía Godoy' })).toContainText('Vacunas pendientes');
+
+  await verComo.selectOption({ label: 'Lic. Andrés Castillo' });
+  await page.getByRole('tab', { name: 'Reportes' }).click();
+  await page.getByRole('group', { name: 'Tipo de reporte' }).getByRole('button', { name: 'Mi especialidad' }).click();
+  await expect(page.getByText('llegaron al objetivo que fijaste')).toBeVisible();
+  await expect(page.getByRole('img', { name: /^Peso de / })).toBeVisible();
+
+  await verComo.selectOption({ label: 'Dra. Paula Ríos' });
+  await page.getByRole('tab', { name: 'Reportes' }).click();
+  await page.getByRole('group', { name: 'Tipo de reporte' }).getByRole('button', { name: 'Presupuestos' }).click();
+  await expect(page.getByText('Margen por procedimiento')).toBeVisible();
+  await expect(page.getByRole('cell', { name: 'Toxina botulínica, 3 zonas' })).toBeVisible();
+});

@@ -8,7 +8,7 @@ import { useAhora } from '@/components/barberia/useBarberia';
 import { formatoPrecio, soloDigitos } from '@/lib/utiles';
 import { DIA_MS, fechaCorta, hora, nombreDia } from '@/lib/rubros/barberia/agenda';
 import {
-  CUOTAS, MSJ, NOMBRE_DOC, NOMBRE_PLAN, PORC_SENA, aceptarPresupuesto, actualizarPresupuesto, agregarMensaje, compartir, estadoActual, montosPlan, nombreProf, pagarSena, registrar, serie, totalDe,
+  CUOTAS, MSJ, NOMBRE_DOC, guardarPreconsulta, preconsultaDe, NOMBRE_PLAN, PORC_SENA, aceptarPresupuesto, actualizarPresupuesto, agregarMensaje, compartir, estadoActual, montosPlan, nombreProf, pagarSena, registrar, serie, totalDe,
 } from '@/lib/rubros/consultorio/clinico/logica';
 import type { Cliente } from '@/lib/rubros/barberia/tipos';
 import type { EstadoClinico, PlanPago, Presupuesto } from '@/lib/rubros/consultorio/clinico/tipos';
@@ -20,7 +20,7 @@ import { Comparador, ListaDocumentos, PedirPin, iniciales } from './comun';
 
 const mayuscula = (t: string) => t.charAt(0).toUpperCase() + t.slice(1);
 
-type Seccion = 'inicio' | 'documentos' | 'resultados' | 'presupuestos' | 'mas';
+type Seccion = 'inicio' | 'documentos' | 'resultados' | 'presupuestos' | 'mas' | 'preconsulta';
 
 /**
  * Portal del paciente (BRD 15, F8): entra con su WhatsApp y un código de un solo uso (en la demo llega
@@ -122,6 +122,7 @@ export function PortalPaciente({ slug }: { slug: string }) {
                 <ListaDocumentos slug={slug} docs={clinico.documentos.filter((d) => d.pacienteId === pac.id).sort((a, b) => b.fecha.localeCompare(a.fecha)).slice(0, 12)} agenda={agenda} negocio={config.negocio} />
               </section>
             )}
+            {sec === 'preconsulta' && <PreconsultaPaciente agenda={agenda} clinico={clinico} actualizarClinico={actualizarClinico} pac={pac} onListo={() => setSec('inicio')} />}
             {sec === 'resultados' && <ResultadosPaciente clinico={clinico} pac={pac} agenda={agenda} />}
             {sec === 'presupuestos' && <PresupuestosPaciente agenda={agenda} clinico={clinico} actualizarClinico={actualizarClinico} pac={pac} negocio={config.negocio} moneda={config.moneda} abierto={presAbierto} setAbierto={setPresAbierto} />}
             {sec === 'mas' && <MasPaciente slug={slug} agenda={agenda} clinico={clinico} actualizarClinico={actualizarClinico} pac={pac} titular={tit!} negocio={config.negocio} setPerfil={setPerfil} familia={familia} />}
@@ -159,6 +160,7 @@ function InicioPaciente({ slug, agenda, clinico, pac, irA, abrirPres }: { slug: 
             <strong>{mayuscula(nombreDia(prox.inicio, new Date(ahora)))}, {hora(prox.inicio)} h</strong>
             <span>{nombreProf(prof)}</span>
             <Link className="d-btn" href={`/d/${slug}/turno/${prox.token}`}>Ver, confirmar o cambiar</Link>
+            {preconsultaDe(clinico, prox.id) ? <span><Icono nombre="check" size={16} /> Preconsulta completa</span> : <button type="button" className="d-btn" style={{ background: 'transparent', color: 'inherit', borderColor: 'currentColor' }} onClick={() => irA('preconsulta')}>Completar la preconsulta (2 minutos)</button>}
           </>
         ) : (
           <>
@@ -414,5 +416,45 @@ function MasPaciente({ slug, agenda, clinico, actualizarClinico, pac, titular, n
         </div>
       </section>
     </>
+  );
+}
+
+function PreconsultaPaciente({ agenda, clinico, actualizarClinico, pac, onListo }: { agenda: NonNullable<ReturnType<typeof useClinico>['estado']>; clinico: EstadoClinico; actualizarClinico: ReturnType<typeof useClinico>['actualizarClinico']; pac: Cliente; onListo: () => void }) {
+  const ahora = useAhora();
+  const prox = agenda.turnos.filter((t) => t.clienteId === pac.id && +new Date(t.inicio) > ahora && (t.estado === 'reservado' || t.estado === 'confirmado')).sort((a, b) => a.inicio.localeCompare(b.inicio))[0];
+  const ficha = clinico.fichas.find((f) => f.pacienteId === pac.id);
+  const [motivo, setMotivo] = useState('');
+  const [medicacion, setMedicacion] = useState(ficha?.medicacion === 'Ninguna.' ? '' : ficha?.medicacion ?? '');
+  const [alergias, setAlergias] = useState(ficha?.alergias.join(', ') ?? '');
+  const [antecedentes, setAntecedentes] = useState('');
+  const [archivos, setArchivos] = useState<string[]>([]);
+  const [nombre, setNombre] = useState(pac.nombre);
+  const [acepto, setAcepto] = useState(false);
+  const [error, setError] = useState('');
+  if (!prox) return <section className="d-card"><p className="cl-vacio">No tenés turnos próximos.</p><button type="button" className="d-btn" onClick={onListo}>Volver</button></section>;
+  return (
+    <form className="d-card cl-form" aria-labelledby="t-pre" onSubmit={(e) => {
+      e.preventDefault();
+      if (motivo.trim().length < 3) return setError('Contanos en pocas palabras por qué venís.');
+      if (nombre.trim().length < 3 || !acepto) return setError('Firmá con tu nombre y aceptá el uso de tus datos.');
+      actualizarClinico((c) => guardarPreconsulta(c, { turnoId: prox.id, pacienteId: pac.id, motivo: motivo.trim(), medicacion: medicacion.trim(), alergias: alergias.trim(), antecedentes: antecedentes.trim(), archivos, firma: { nombre: nombre.trim(), fecha: new Date().toISOString() } }, prox.profId));
+      onListo();
+    }}>
+      <h2 id="t-pre" style={{ margin: 0 }}>Antes de tu consulta</h2>
+      <p className="sub" style={{ margin: 0 }}>Lo lee solo tu profesional. Así la consulta rinde más.</p>
+      <label>¿Por qué venís?<textarea className="c-inp" rows={3} value={motivo} onChange={(e) => setMotivo(e.target.value)} /></label>
+      <label>¿Tomás alguna medicación?<input className="c-inp" value={medicacion} onChange={(e) => setMedicacion(e.target.value)} placeholder="Nombre y dosis, o dejalo vacío" /></label>
+      <label>¿Tenés alergias?<input className="c-inp" value={alergias} onChange={(e) => setAlergias(e.target.value)} placeholder="Por ejemplo, a un medicamento" /></label>
+      <label>Antecedentes que quieras contar<textarea className="c-inp" rows={2} value={antecedentes} onChange={(e) => setAntecedentes(e.target.value)} /></label>
+      <label>Estudios anteriores (fotos o PDF)
+        <input className="c-inp" type="file" multiple accept="image/*,application/pdf" onChange={(e) => setArchivos([...(e.target.files ?? [])].map((f) => f.name))} />
+        <span className="bar-ayuda">En la demo se guarda solo el nombre del archivo.</span>
+      </label>
+      <label>Firma (tu nombre y apellido)<input className="c-inp" value={nombre} onChange={(e) => setNombre(e.target.value)} /></label>
+      <label style={{ display: 'flex', gap: 10, alignItems: 'center', fontWeight: 600 }}><input type="checkbox" checked={acepto} onChange={(e) => setAcepto(e.target.checked)} style={{ width: 22, height: 22 }} /> Acepto que el consultorio guarde estos datos para atenderme.</label>
+      {error && <p role="alert" style={{ margin: 0, color: 'var(--sem-rojo)', fontWeight: 700 }}>{error}</p>}
+      <button type="submit" className="d-btn prim" style={{ minHeight: 52 }}>Enviar preconsulta</button>
+      <button type="button" className="d-btn" onClick={onListo}>Ahora no</button>
+    </form>
   );
 }

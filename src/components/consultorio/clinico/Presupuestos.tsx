@@ -9,7 +9,7 @@ import { DIA_MS, fechaCorta, hora } from '@/lib/rubros/barberia/agenda';
 import { reservar } from '@/lib/rubros/barberia/logica';
 import { PLANTILLAS_PROC, checklistDe, codigoDemo, itemsDe } from '@/lib/rubros/consultorio/clinico/datos';
 import {
-  COLUMNAS, MSJ, NOMBRE_PLAN, actualizarPresupuesto, agregarMensaje, columnaDe, diasDesde, enviarPresupuesto, estadoActual, montosPlan,
+  COLUMNAS, MSJ, NOMBRE_PLAN, actualizarPresupuesto, consumirInsumos, costoInsumos, agregarMensaje, columnaDe, diasDesde, enviarPresupuesto, estadoActual, montosPlan,
   nombreProf, nuevaVersion, pagarSena, primerNombre, registrar, statsPresupuestos, totalDe, vistoSinRespuesta,
 } from '@/lib/rubros/consultorio/clinico/logica';
 import type { Presupuesto } from '@/lib/rubros/consultorio/clinico/tipos';
@@ -189,7 +189,7 @@ function DetallePresupuesto({ agenda, actualizar, clinico, actualizarClinico, co
   function realizado() {
     const base = turno ? +new Date(turno.inicio) : ahora;
     const pl = PLANTILLAS_PROC.find((x) => x.nombre === p.procedimiento);
-    cambiar({ realizado: new Date(base).toISOString(), controles: (pl?.controles ?? [15]).map((d) => ({ dias: d, fecha: new Date(base + d * DIA_MS).toISOString(), hecho: false })) }, 'Registró un procedimiento realizado');
+    actualizarClinico((x) => consumirInsumos(registrar(actualizarPresupuesto(x, p.id, { realizado: new Date(base).toISOString(), controles: (pl?.controles ?? [15]).map((d) => ({ dias: d, fecha: new Date(base + d * DIA_MS).toISOString(), hecho: false })) }), quien, 'Registró un procedimiento realizado'), p.id));
   }
 
   return (
@@ -206,6 +206,7 @@ function DetallePresupuesto({ agenda, actualizar, clinico, actualizarClinico, co
           {p.items.map((it, i) => <li key={i}><span style={{ flex: 1 }}>{it.concepto}</span><strong>{it.monto ? formatoPrecio(it.monto, config.moneda) : 'Incluido'}</strong></li>)}
           <li><span style={{ flex: 1, fontWeight: 800 }}>Total</span><strong>{formatoPrecio(totalDe(p), config.moneda)}</strong></li>
         </ul>
+        <p className="cl-gris" style={{ margin: '0 0 4px' }}>Insumos {formatoPrecio(costoInsumos(clinico, p), config.moneda)} · margen {formatoPrecio(totalDe(p) - costoInsumos(clinico, p), config.moneda)} antes de honorarios{p.insumosUsados ? ' · ya descontados del stock' : ''}.</p>
         <p className="cl-gris" style={{ margin: '0 0 12px' }}>Vale hasta el {fechaCorta(new Date(p.validoHasta))}. {p.consulta ? `Consulta del paciente: "${p.consulta}"` : ''}</p>
 
         {(e === 'borrador') && <button type="button" className="d-btn prim" onClick={() => actualizarClinico((x) => enviarPresupuesto(x, p, config.negocio, quien))}>Enviar al paciente</button>}

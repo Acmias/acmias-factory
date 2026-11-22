@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import QRCode from 'qrcode';
+import Link from 'next/link';
 import { Icono } from '@/components/Icono';
 import { fechaCorta } from '@/lib/rubros/barberia/agenda';
 import { NOMBRE_DOC, enlaceValidacion } from '@/lib/rubros/consultorio/clinico/logica';
@@ -39,7 +40,7 @@ export function QrDocumento({ slug, doc, prof, negocio, size = 132 }: { slug: st
   ) : <span className="cl-qr" style={{ width: size, height: size, display: 'inline-block' }} aria-hidden="true" />;
 }
 
-export function ListaDocumentos({ slug, docs, agenda, negocio, conQr = true }: { slug: string; docs: Documento[]; agenda: EstadoAgenda; negocio: string; conQr?: boolean }) {
+export function ListaDocumentos({ slug, docs, agenda, negocio, conQr = true, imprimir = false }: { slug: string; docs: Documento[]; agenda: EstadoAgenda; negocio: string; conQr?: boolean; imprimir?: boolean }) {
   if (!docs.length) return <p className="cl-vacio">Todavía no hay recetas ni certificados.</p>;
   return (
     <ul className="cl-lista">
@@ -54,7 +55,10 @@ export function ListaDocumentos({ slug, docs, agenda, negocio, conQr = true }: {
               <small className="cl-gris">{fechaCorta(new Date(d.fecha))} · {prof ? `${prof.titulo ?? ''} ${prof.nombre}`.trim() : ''} · {d.codigo}</small>
               <small className="cl-chip av" style={{ justifySelf: 'start' }}>Demo — sin validez legal</small>
             </div>
-            <a className="d-btn" href={enlaceValidacion(origen(), slug, d, prof, negocio)} target="_blank" rel="noreferrer" aria-label={`Validar ${NOMBRE_DOC[d.tipo]} ${d.codigo}`}><Icono nombre="qr" size={18} /> Validar</a>
+            <div style={{ display: 'grid', gap: 6 }}>
+              <a className="d-btn" href={enlaceValidacion(origen(), slug, d, prof, negocio)} target="_blank" rel="noreferrer" aria-label={`Validar ${NOMBRE_DOC[d.tipo]} ${d.codigo}`}><Icono nombre="qr" size={18} /> Validar</a>
+              {imprimir && d.tipo !== 'indicacion' && <Link className="d-btn" href={`/d/${slug}/recipe/${d.id}`} aria-label={`Imprimir ${NOMBRE_DOC[d.tipo]} ${d.codigo}`}><Icono nombre="imprimir" size={18} /> Imprimir</Link>}
+            </div>
           </li>
         );
       })}

@@ -12,6 +12,7 @@ import { Resultados } from './Resultados';
 import { Presupuestos } from './Presupuestos';
 import { Galeria } from './Galeria';
 import { Inicio, Reportes } from './Reportes';
+import { Administracion } from './Administracion';
 import { Simulador } from './Simulador';
 import type { PropsClinico } from './comun';
 
@@ -22,14 +23,17 @@ const MEDICO = [
   { id: 'resultados', nombre: 'Resultados' },
   { id: 'presupuestos', nombre: 'Presupuestos' },
   { id: 'galeria', nombre: 'Galería' },
-  { id: 'reportes', nombre: 'Reportes' },
   { id: 'clientes', nombre: 'Pacientes' },
+  { id: 'administracion', nombre: 'Administración' },
+  { id: 'reportes', nombre: 'Reportes' },
   { id: 'espera', nombre: 'Lista de espera' },
   { id: 'bloqueos', nombre: 'Bloqueos y vacaciones' },
   { id: 'metricas', nombre: 'Métricas' },
   { id: 'ajustes', nombre: 'Ajustes' },
 ];
-const SECRETARIA = ['agenda', 'presupuestos', 'clientes', 'espera', 'bloqueos', 'metricas', 'ajustes'];
+/** El profesional ve todo menos las métricas simples de la agenda (las reemplazan los reportes). */
+const SOLO_SECRETARIA = ['metricas'];
+const SECRETARIA = ['agenda', 'presupuestos', 'clientes', 'administracion', 'espera', 'bloqueos', 'metricas', 'ajustes'];
 
 /**
  * Panel del consultorio (BRD 05 + BRD 15): la agenda de siempre más el módulo clínico.
@@ -41,7 +45,7 @@ export function PanelConsultorio({ slug }: { slug: string }) {
   // El módulo clínico se crea un instante después de la agenda (clave aparte).
   if (!clinico) return <div style={{ minHeight: '100vh', background: '#f5f6f8' }} aria-busy="true" />;
   const secretaria = clinico.rol === 'secretaria';
-  const pestanas = MEDICO.filter((p) => !secretaria || SECRETARIA.includes(p.id)).map((p) => (p.id === 'espera' ? { ...p, nombre: `Lista de espera${agenda.espera.length ? ` (${agenda.espera.length})` : ''}` } : p));
+  const pestanas = MEDICO.filter((p) => (secretaria ? SECRETARIA.includes(p.id) : !SOLO_SECRETARIA.includes(p.id))).map((p) => (p.id === 'espera' ? { ...p, nombre: `Lista de espera${agenda.espera.length ? ` (${agenda.espera.length})` : ''}` } : p));
 
   function verComo(v: string) {
     actualizarClinico((c) => {
@@ -95,6 +99,7 @@ export function PanelConsultorio({ slug }: { slug: string }) {
           if (id === 'presupuestos') return <Presupuestos {...props} />;
           if (id === 'galeria') return <Galeria {...props} />;
           if (id === 'reportes') return <Reportes {...props} />;
+          if (id === 'administracion') return <Administracion {...props} />;
           if (id === 'clientes')
             return <Pacientes estado={agenda} actualizar={actualizar} historia={secretaria ? () => <div className="cl-aviso" role="note">Solo el profesional ve la historia clínica. Desde la secretaría se ven los datos de contacto, la cobertura y los turnos.</div> : (p) => <HistoriaClinica slug={slug} agenda={agenda} clinico={clinico} actualizarClinico={actualizarClinico} paciente={p} negocio={config.negocio} quien={quien} />} />;
           return null;

@@ -138,6 +138,16 @@ export function iniciarEstadoDe<T>(clave: string, crear: () => T) {
   }
 }
 
+/** Reemplaza el estado de una clave propia (p. ej. cuando cambió la versión de sus datos de ejemplo). */
+export function reemplazarEstadoDe<T>(clave: string, valor: T) {
+  try {
+    escribir(claveEstado(clave), valor);
+    return null;
+  } catch (e) {
+    return e instanceof Error ? e.message : 'No se pudo guardar.';
+  }
+}
+
 /** Datos aparte de la demo (módulo clínico del consultorio): se borran con la demo y al volver a los datos de ejemplo. */
 const EXTRAS = [':clinico'];
 function borrarExtras(slug: string) {

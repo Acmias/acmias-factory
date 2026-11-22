@@ -22,13 +22,19 @@ const SERVICIOS: (Omit<Servicio, 'precio'> & { base: number })[] = [
   { id: 'q-evaluacion', nombre: 'Consulta de evaluación', descripcion: 'Primera consulta y presupuesto sin compromiso.', duracion: 30, base: 25 },
   { id: 'q-toxina', nombre: 'Procedimiento con presupuesto aprobado', descripcion: 'Solo con presupuesto aceptado.', duracion: 30, base: 120 },
   { id: 'q-retoque', nombre: 'Control posterior', descripcion: 'Incluido en el presupuesto.', duracion: 15, base: 0 },
+  { id: 'q-ped', nombre: 'Consulta pediátrica', descripcion: 'Para chicos y adolescentes.', duracion: 20, base: 26 },
+  { id: 'q-ninosano', nombre: 'Control de niño sano', descripcion: 'Peso, talla y desarrollo.', duracion: 20, base: 24 },
 ];
 
 export const PROFESIONALES_CONS: Profesional[] = [
   { id: 'm-mendez', nombre: 'Laura Méndez', titulo: 'Dra.', especialidad: 'Médica clínica', matricula: 'MN 00000 (ficticia)', servicios: ['q-primera', 'q-control', 'q-apto'], coberturas: ['Salud Plus', 'MediRed', PARTICULAR] },
   { id: 'm-castillo', nombre: 'Andrés Castillo', titulo: 'Lic.', especialidad: 'Nutricionista', matricula: 'MN 00001 (ficticia)', servicios: ['q-nutri', 'q-seguim'], coberturas: ['MediRed', PARTICULAR], teleconsulta: true },
   { id: 'm-rios', nombre: 'Paula Ríos', titulo: 'Dra.', especialidad: 'Medicina estética', matricula: 'MN 00002 (ficticia)', servicios: ['q-evaluacion', 'q-toxina', 'q-retoque'], coberturas: [PARTICULAR] },
+  { id: 'm-paz', nombre: 'Carla Paz', titulo: 'Dra.', especialidad: 'Pediatra', matricula: 'MN 00003 (ficticia)', servicios: ['q-ped', 'q-ninosano'], coberturas: ['Salud Plus', 'MediRed', PARTICULAR] },
 ];
+
+/** Pacientes chicos (los atiende la pediatra). */
+export const NINOS = ['Tomás Martínez', 'Lucas Ferreyra', 'Mía Godoy', 'Benjamín Sosa'];
 
 /** Lunes a viernes de 9 a 19 h, con pausa de 13 a 15 h. */
 export const HORARIO_CONS: Horario = { 0: null, 1: [540, 1140], 2: [540, 1140], 3: [540, 1140], 4: [540, 1140], 5: [540, 1140], 6: null };
@@ -38,8 +44,8 @@ const NOMBRES = [
   'Raúl Giménez', 'Silvia Romero', 'Hernán Vázquez', 'Florencia Ruiz', 'Gustavo Ledesma', 'Verónica Paz', 'Martín Aguirre',
   'Claudia Ponce', 'Esteban Sosa', 'Natalia Godoy', 'Ricardo Funes', 'Mariana Cabral', 'Sergio Benítez', 'Laura Ibarra',
   'Oscar Villalba', 'Julieta Correa', 'Pablo Moyano', 'Rocío Arias', 'Daniel Ojeda', 'Gabriela Ríos', 'Fernando Luna',
-  // Hijo de Ana (grupo familiar del portal del paciente).
-  'Tomás Martínez',
+  // Chicos que atiende la pediatra. Tomás es hijo de Ana (grupo familiar del portal del paciente).
+  'Tomás Martínez', 'Lucas Ferreyra', 'Mía Godoy', 'Benjamín Sosa',
 ];
 
 function azar(semilla: number) {
@@ -104,11 +110,19 @@ export function crearEstadoConsultorio(moneda: string, ahora = Date.now()): Esta
   // para que las listas de trabajo de los reportes tengan a quién invitar.
   const sinControl = new Set([3, 5, 7, 9, 11, 13, 15, 17, 19, 21].map((i) => clientes[i].id));
   const dejaron = new Set([23, 24, 25, 26].map((i) => clientes[i].id));
+  const ninos = clientes.filter((c) => NINOS.includes(c.nombre));
+  // Mía y Benjamín no tienen el control de niño sano reservado (lista de trabajo de pediatría).
+  const ninoSinControl = new Set(ninos.slice(2).map((c) => c.id));
+  const elegirNino = (dia: Date) => {
+    const posibles = claveDia(dia) >= hoy ? ninos.filter((c) => !ninoSinControl.has(c.id)) : ninos.slice(0, 2);
+    return posibles[Math.floor(r() * posibles.length)];
+  };
   const elegir = (dia: Date) => {
     const futuro = claveDia(dia) >= hoy;
     const reciente = +dia > ahora - 21 * DIA_MS;
     for (let k = 0; k < 12; k++) {
       const c = clientes[1 + Math.floor(r() ** 1.4 * (clientes.length - 1))];
+      if (NINOS.includes(c.nombre)) continue;
       if (futuro && sinControl.has(c.id)) continue;
       if (reciente && dejaron.has(c.id)) continue;
       return c;
@@ -120,8 +134,10 @@ export function crearEstadoConsultorio(moneda: string, ahora = Date.now()): Esta
     const h = HORARIO_CONS[dia.getDay()];
     if (!h) continue;
     const pasado = claveDia(dia) < hoy;
-    const relleno = pasado ? 0.7 : claveDia(dia) === hoy ? 0.6 : Math.max(0.15, 0.55 - (d - 7) * 0.035);
+    const relleno0 = pasado ? 0.7 : claveDia(dia) === hoy ? 0.6 : Math.max(0.15, 0.55 - (d - 7) * 0.035);
     for (const p of PROFESIONALES_CONS) {
+      // La pediatra atiende pocos turnos (pocos pacientes chicos en la demo).
+      const relleno = p.id === 'm-paz' ? relleno0 * 0.08 : relleno0;
       let m = h[0];
       while (m < h[1]) {
         const sid = p.servicios[Math.floor(r() * p.servicios.length)];
@@ -130,7 +146,7 @@ export function crearEstadoConsultorio(moneda: string, ahora = Date.now()): Esta
         const ini = conMinutos(dia, m);
         const fin = new Date(+ini + s.duracion * 60_000);
         if (r() < relleno && libre(estado, p.id, +ini, +fin)) {
-          const c = elegir(dia);
+          const c = p.id === 'm-paz' ? elegirNino(dia) : elegir(dia);
           const terminado = +fin <= ahora;
           const x = r();
           // Ausentismo de ejemplo cercano al 18 % (el BRD cita ~20 % en Argentina).
@@ -178,7 +194,7 @@ export function crearEstadoConsultorio(moneda: string, ahora = Date.now()): Esta
     });
   }
   // Ana es paciente habitual: una consulta cada una o dos semanas, más un turno próximo.
-  const pasados = estado.turnos.filter((t) => +new Date(t.fin) <= ahora && t.estado === 'atendido' && !t.sobreturno);
+  const pasados = estado.turnos.filter((t) => +new Date(t.fin) <= ahora && t.estado === 'atendido' && !t.sobreturno && t.profId !== 'm-paz');
   const porDia = new Map<string, Turno>();
   for (const t of pasados) porDia.set(claveDia(t.inicio), t);
   [...porDia.values()].filter((_, i, a) => (a.length - 1 - i) % 6 === 0).slice(-5).forEach((t) => {

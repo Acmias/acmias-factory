@@ -108,7 +108,7 @@ test('la secretaría ve solo la ficha administrativa; la agenda no guarda datos 
 test('la secretaria da un sobreturno y bloquea vacaciones', async ({ page }) => {
   const slug = await crearDemo(page, 'Consultorio Este');
   await page.goto(`/d/${slug}/panel`);
-  await page.getByRole('tab', { name: 'Agenda', exact: true }).click();
+  await page.getByLabel('Ver como').selectOption('secretaria');
   await page.getByRole('button', { name: 'Nuevo turno' }).click();
   const hoja = page.getByRole('dialog');
   await hoja.getByLabel('Profesional').selectOption({ label: 'Laura Méndez' });

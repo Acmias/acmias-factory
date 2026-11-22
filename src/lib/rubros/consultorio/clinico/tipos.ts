@@ -16,6 +16,78 @@ export interface FichaClinica {
   cronico?: string;
   /** Fecha (YYYY-MM-DD) del próximo control que indicó el médico. */
   proximoControl?: string;
+  /** Pediatría: fecha de nacimiento y vacunas que la médica registró como pendientes. */
+  nacimiento?: string;
+  vacunasPendientes?: string[];
+}
+
+/** Preconsulta que completa el paciente desde el portal antes del turno (F3). */
+export interface Preconsulta {
+  id: string;
+  turnoId: string;
+  pacienteId: string;
+  fecha: string;
+  motivo: string;
+  medicacion: string;
+  alergias: string;
+  antecedentes: string;
+  archivos: string[];
+  firma: { nombre: string; fecha: string };
+}
+
+/** Check-in en recepción (F4): cuándo llegó y cuándo pasó a consulta. */
+export interface Llegada {
+  turnoId: string;
+  fecha: string;
+  atendido?: string;
+}
+
+export type MedioPago = 'efectivo' | 'transferencia' | 'tarjeta' | 'link';
+
+export interface Cobro {
+  id: string;
+  fecha: string;
+  concepto: string;
+  monto: number;
+  medio: MedioPago;
+  origen: 'consulta' | 'presupuesto' | 'alquiler' | 'manual';
+  profId?: string;
+  pacienteId?: string;
+  turnoId?: string;
+}
+
+export interface CierreCaja {
+  dia: string;
+  fecha: string;
+  total: number;
+  quien: string;
+}
+
+export interface Espacio {
+  id: string;
+  nombre: string;
+  precioHora: number;
+}
+
+/** Alquiler de un consultorio por hora a un colega (F11). */
+export interface Alquiler {
+  id: string;
+  espacioId: string;
+  colega: string;
+  especialidad: string;
+  inicio: string;
+  fin: string;
+  monto: number;
+  cobrado: boolean;
+}
+
+export interface Insumo {
+  id: string;
+  nombre: string;
+  unidad: string;
+  stock: number;
+  minimo: number;
+  costo: number;
 }
 
 export interface Agregado {
@@ -114,6 +186,8 @@ export interface Presupuesto {
   motivoRechazo?: string;
   turnoId?: string;
   realizado?: string;
+  /** Insumos que se descontaron del stock al registrarlo realizado. */
+  insumosUsados?: { insumoId: string; cantidad: number }[];
   checklist: PasoChecklist[];
   controles: Control[];
 }
@@ -190,4 +264,13 @@ export interface EstadoClinico {
   /** Titular → pacientes a cargo (grupo familiar). */
   familias: Record<string, string[]>;
   invitaciones: Invitacion[];
+  preconsultas: Preconsulta[];
+  llegadas: Llegada[];
+  cobros: Cobro[];
+  cierres: CierreCaja[];
+  /** Porcentaje que se queda el consultorio de lo que cobra cada profesional. */
+  porcConsultorio: number;
+  espacios: Espacio[];
+  alquileres: Alquiler[];
+  insumos: Insumo[];
 }

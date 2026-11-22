@@ -1,16 +1,18 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import QRCode from 'qrcode';
+import { useDialogo } from '@/components/useDialogo';
 import Link from 'next/link';
 import { Icono } from '@/components/Icono';
 import { useAhora } from '@/components/barberia/useBarberia';
 import { NOMBRE_ESTADO, fechaCorta, hora, turnosDelDia } from '@/lib/rubros/barberia/agenda';
 import { cambiarEstado } from '@/lib/rubros/barberia/logica';
 import { COMBOS, DIAGNOSTICOS, PLANTILLAS } from '@/lib/rubros/consultorio/clinico/datos';
-import { NOMBRE_DOC, agregarNota, fichaDe, firmarConsulta, itemsDeCombo, nombreProf, registrar, type ItemIndicacion } from '@/lib/rubros/consultorio/clinico/logica';
+import { NOMBRE_DOC, agregarNota, fichaDe, firmarConsulta, itemsDeCombo, marcarPasado, nombreProf, preconsultaDe, registrar, salaDeEspera, type ItemIndicacion } from '@/lib/rubros/consultorio/clinico/logica';
 import type { Cliente, Turno } from '@/lib/rubros/barberia/tipos';
 import type { Documento, EstadoClinico, TipoDocumento } from '@/lib/rubros/consultorio/clinico/tipos';
-import { ListaDocumentos, iniciales, type PropsClinico } from './comun';
+import { ListaDocumentos, iniciales, origen, type PropsClinico } from './comun';
 
 /** Consultas del día del profesional (CLI-06 a CLI-08). */
 export function Consultas(props: PropsClinico) {
@@ -18,7 +20,9 @@ export function Consultas(props: PropsClinico) {
   const ahora = useAhora();
   const [abierta, setAbierta] = useState<{ turno?: Turno; paciente: Cliente } | null>(null);
   const [sinTurno, setSinTurno] = useState('');
+  const [qr, setQr] = useState(false);
   if (!medico) return null;
+  const sala = salaDeEspera(agenda, clinico, medico.id);
   const hoy = turnosDelDia(agenda.turnos, new Date(ahora)).filter((t) => t.profId === medico.id && t.estado !== 'cancelado');
   const firmada = (t: Turno) => clinico.evoluciones.find((e) => e.turnoId === t.id);
 
@@ -30,6 +34,29 @@ export function Consultas(props: PropsClinico) {
   if (abierta) return <PantallaConsulta {...props} paciente={abierta.paciente} turno={abierta.turno} onCerrar={() => setAbierta(null)} />;
 
   return (
+    <>
+    <section className="d-card" aria-labelledby="t-sala">
+      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap', alignItems: 'flex-start' }}>
+        <div><h2 id="t-sala">Sala de espera</h2><p className="sub">Los pacientes avisan que llegaron escaneando el QR de recepción y ven cuántos faltan antes que ellos.</p></div>
+        <button type="button" className="d-btn" onClick={() => setQr(true)}><Icono nombre="qr" size={18} /> QR de recepción</button>
+      </div>
+      <ol className="cl-lista" aria-label="Pacientes en sala de espera">
+        {sala.map(({ llegada, turno }, i) => {
+          const p = agenda.clientes.find((c) => c.id === turno.clienteId);
+          const espera = Math.max(0, Math.round((ahora - +new Date(llegada.fecha)) / 60_000));
+          return (
+            <li key={turno.id} className="cl-fila">
+              <span className="bar-avatar" aria-hidden="true">{i + 1}</span>
+              <div><strong>{p?.nombre}</strong><small>Turno {hora(turno.inicio)} h · llegó {hora(llegada.fecha)} h{preconsultaDe(clinico, turno.id) ? ' · preconsulta lista' : ''}</small></div>
+              <span className={`cl-chip ${espera > 20 ? 'av' : ''}`}>Espera {espera} min</span>
+              {p && <button type="button" className={`d-btn${i === 0 ? ' prim' : ''}`} onClick={() => { actualizarClinico((c) => marcarPasado(c, turno.id)); abrir(p, turno); }}>Pasar a consulta</button>}
+            </li>
+          );
+        })}
+        {!sala.length && <li className="cl-vacio">Nadie en la sala de espera.</li>}
+      </ol>
+    </section>
+    {qr && <QrRecepcion slug={props.slug} negocio={props.config.negocio} onCerrar={() => setQr(false)} />}
     <section className="d-card" aria-labelledby="t-cons">
       <h2 id="t-cons">Consultas de hoy · {nombreProf(medico)}</h2>
       <p className="sub">Tocá Atender para abrir la historia, cargar la evolución y armar las indicaciones con un combo.</p>
@@ -46,7 +73,8 @@ export function Consultas(props: PropsClinico) {
                 <strong>{p?.nombre}{alergia ? <span className="cl-chip mal" style={{ marginLeft: 8 }}>Alergia registrada</span> : null}</strong>
                 <small>{serv?.nombre} · {t.cobertura}{t.sobreturno ? ' · Sobreturno' : ''}</small>
               </div>
-              <span className={`cl-chip ${ev ? 'ok' : t.estado === 'ausente' ? 'mal' : t.estado === 'confirmado' ? 'info' : ''}`}>{ev ? 'Firmada' : NOMBRE_ESTADO[t.estado]}</span>
+              {!ev && preconsultaDe(clinico, t.id) && <span className="cl-chip info">Preconsulta lista</span>}
+              <span className={`cl-chip ${ev ? 'ok' : t.estado === 'ausente' ? 'mal' : t.estado === 'confirmado' ? 'info' : ''}`}>{ev ? 'Firmada' : clinico.llegadas.some((l) => l.turnoId === t.id && !l.atendido) ? 'En sala' : NOMBRE_ESTADO[t.estado]}</span>
               {p && t.estado !== 'ausente' && (
                 <button type="button" className={`d-btn${ev ? '' : ' prim'}`} onClick={() => abrir(p, ev ? undefined : t)}>{ev ? 'Ver historia' : 'Atender'}</button>
               )}
@@ -65,6 +93,32 @@ export function Consultas(props: PropsClinico) {
         <div><button type="submit" className="d-btn" disabled={!sinTurno}>Abrir historia</button></div>
       </form>
     </section>
+    </>
+  );
+}
+
+/** QR para imprimir y pegar en recepción: lleva al check-in del paciente. */
+function QrRecepcion({ slug, negocio, onCerrar }: { slug: string; negocio: string; onCerrar: () => void }) {
+  const ref = useDialogo<HTMLDivElement>(onCerrar);
+  const [img, setImg] = useState('');
+  const url = `${origen()}/d/${slug}/checkin`;
+  useEffect(() => {
+    QRCode.toDataURL(url, { margin: 1, width: 520, errorCorrectionLevel: 'M' }).then(setImg, () => setImg(''));
+  }, [url]);
+  return (
+    <div className="hoja-fondo" onClick={(e) => e.target === e.currentTarget && onCerrar()}>
+      <div className="hoja" role="dialog" aria-modal="true" aria-labelledby="t-qrr" ref={ref} style={{ textAlign: 'center' }}>
+        <div className="hoja-cab"><h3 id="t-qrr">QR de recepción</h3><button type="button" className="x" aria-label="Cerrar" onClick={onCerrar}><Icono nombre="cerrar" /></button></div>
+        <p style={{ margin: '0 0 8px', fontSize: 20, fontWeight: 800 }}>¿Llegaste a {negocio}?</p>
+        <p className="cl-gris" style={{ margin: '0 0 12px' }}>Escaneá el código para avisar que estás en la sala.</p>
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        {img && <img src={img} alt="Código QR para avisar que llegaste" style={{ width: 260, height: 260, margin: '0 auto', borderRadius: 12 }} />}
+        <div style={{ display: 'flex', gap: 8, justifyContent: 'center', marginTop: 14, flexWrap: 'wrap' }}>
+          <button type="button" className="d-btn prim" onClick={() => window.print()}><Icono nombre="imprimir" size={18} /> Imprimir</button>
+          <a className="d-btn" href={url} target="_blank" rel="noreferrer">Probar el check-in</a>
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -74,7 +128,8 @@ function PantallaConsulta({ slug, config, agenda, actualizar, clinico, actualiza
   const prof = medico!;
   const plantilla = PLANTILLAS[prof.id] ?? PLANTILLAS['m-mendez'];
   const ficha = fichaDe(clinico, paciente.id);
-  const [motivo, setMotivo] = useState('');
+  const pre = preconsultaDe(clinico, turno?.id);
+  const [motivo, setMotivo] = useState(pre?.motivo ?? '');
   const [texto, setTexto] = useState('');
   const [dictado, setDictado] = useState(false);
   const [diag, setDiag] = useState('');
@@ -112,7 +167,7 @@ function PantallaConsulta({ slug, config, agenda, actualizar, clinico, actualiza
       <section className="d-card" aria-labelledby="t-firm">
         <h2 id="t-firm"><Icono nombre="check" size={20} /> Consulta firmada</h2>
         <p className="sub">La evolución de {paciente.nombre} quedó guardada y ya no se puede editar. {hecho.length ? 'El paciente recibió un aviso neutro: "Tenés un documento nuevo en tu portal".' : ''}</p>
-        <ListaDocumentos slug={slug} docs={hecho} agenda={agenda} negocio={config.negocio} />
+        <ListaDocumentos slug={slug} docs={hecho} agenda={agenda} negocio={config.negocio} imprimir />
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 16 }}>
           <button type="button" className="d-btn prim" onClick={onCerrar}>Volver a las consultas</button>
           <Link className="d-btn" href={`/d/${slug}/portal`}>Ver el portal del paciente</Link>
@@ -140,6 +195,16 @@ function PantallaConsulta({ slug, config, agenda, actualizar, clinico, actualiza
         <div className="cl-dos">
           <aside style={{ display: 'grid', gap: 12 }} aria-label="Resumen del paciente">
             {ficha?.alergias.map((a) => <div key={a} className="cl-alerta" role="alert"><Icono nombre="info" size={18} /> Alergia registrada: {a}</div>)}
+            {pre && (
+              <div className="cl-tarea" style={{ borderColor: 'var(--c-marca-texto)' }}>
+                <span className="cl-chip info" style={{ justifySelf: 'start' }}>Preconsulta del paciente</span>
+                <small className="cl-gris">Motivo</small><p>{pre.motivo}</p>
+                {pre.medicacion && <><small className="cl-gris">Medicación que toma</small><p>{pre.medicacion}</p></>}
+                {pre.alergias && <><small className="cl-gris">Alergias que declaró</small><p>{pre.alergias}</p></>}
+                {pre.antecedentes && <><small className="cl-gris">Antecedentes</small><p>{pre.antecedentes}</p></>}
+                {pre.archivos.length > 0 && <p className="cl-gris">Subió {pre.archivos.length} estudio{pre.archivos.length > 1 ? 's' : ''}: están en Resultados.</p>}
+              </div>
+            )}
             <div className="cl-tarea">
               <small className="cl-gris">Antecedentes</small><p>{ficha?.antecedentes}</p>
               <small className="cl-gris">Medicación habitual</small><p>{ficha?.medicacion}</p>
@@ -250,7 +315,7 @@ export function HistoriaClinica({ slug, agenda, clinico, actualizarClinico, paci
         {!evol.length && <li className="cl-vacio">Todavía no hay consultas firmadas.</li>}
       </ol>
       <h3 style={{ margin: 0, fontSize: 17 }}>Recetas, certificados y órdenes</h3>
-      <ListaDocumentos slug={slug} docs={docs.slice(0, 6)} agenda={agenda} negocio={negocio} conQr={false} />
+      <ListaDocumentos slug={slug} docs={docs.slice(0, 6)} agenda={agenda} negocio={negocio} conQr={false} imprimir />
     </div>
   );
 }
