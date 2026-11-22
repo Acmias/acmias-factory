@@ -13,8 +13,11 @@ import type { Cliente, EstadoAgenda } from '@/lib/rubros/barberia/tipos';
 const iniciales = (n: string) => n.split(' ').map((x) => x[0]).slice(0, 2).join('').toUpperCase();
 const QUIEN = 'Secretaría (demo)';
 
-/** Pacientes (CON-08): ficha administrativa. La historia clínica es solo una vista previa ficticia que no se guarda. */
-export function Pacientes({ estado, actualizar }: { estado: EstadoAgenda; actualizar: ActualizarAgenda }) {
+/**
+ * Pacientes (CON-08): ficha administrativa. Con el módulo clínico (BRD 15) el profesional ve la historia
+ * clínica real de la demo (datos ficticios, guardados aparte); la secretaría ve solo la ficha administrativa.
+ */
+export function Pacientes({ estado, actualizar, historia }: { estado: EstadoAgenda; actualizar: ActualizarAgenda; historia?: (p: Cliente) => React.ReactNode }) {
   const ahora = useAhora();
   const [q, setQ] = useState('');
   const [cob, setCob] = useState<string | null>(null);
@@ -68,12 +71,12 @@ export function Pacientes({ estado, actualizar }: { estado: EstadoAgenda; actual
         })}
       </ul>
       {!lista.length && <p className="tie-vacio">No encontramos pacientes con esa búsqueda.</p>}
-      {c && <FichaPaciente estado={estado} paciente={c} actualizar={actualizar} onCerrar={() => setAbierto(null)} />}
+      {c && <FichaPaciente estado={estado} paciente={c} actualizar={actualizar} historia={historia} onCerrar={() => setAbierto(null)} />}
     </section>
   );
 }
 
-function FichaPaciente({ estado, paciente, actualizar, onCerrar }: { estado: EstadoAgenda; paciente: Cliente; actualizar: ActualizarAgenda; onCerrar: () => void }) {
+function FichaPaciente({ estado, paciente, actualizar, historia, onCerrar }: { estado: EstadoAgenda; paciente: Cliente; actualizar: ActualizarAgenda; historia?: (p: Cliente) => React.ReactNode; onCerrar: () => void }) {
   const ref = useDialogo<HTMLDivElement>(onCerrar);
   const [tab, setTab] = useState<'admin' | 'hc'>('admin');
   const [wa, setWa] = useState(paciente.whatsapp);
@@ -99,7 +102,7 @@ function FichaPaciente({ estado, paciente, actualizar, onCerrar }: { estado: Est
         </div>
         <div className="seg" role="group" aria-label="Secciones de la ficha" style={{ marginBottom: 14 }}>
           <button type="button" aria-pressed={tab === 'admin'} onClick={() => setTab('admin')}>Datos y turnos</button>
-          <button type="button" aria-pressed={tab === 'hc'} onClick={() => setTab('hc')}>Historia clínica · Próximamente</button>
+          <button type="button" aria-pressed={tab === 'hc'} onClick={() => setTab('hc')}>{historia ? 'Historia clínica' : 'Historia clínica · Próximamente'}</button>
         </div>
 
         {tab === 'admin' ? (
@@ -148,7 +151,7 @@ function FichaPaciente({ estado, paciente, actualizar, onCerrar }: { estado: Est
               {!hist.length && <li>Sin turnos todavía.</li>}
             </ul>
           </>
-        ) : (
+        ) : historia ? historia(paciente) : (
           <VistaPreviaHC estado={estado} paciente={paciente} />
         )}
       </div>

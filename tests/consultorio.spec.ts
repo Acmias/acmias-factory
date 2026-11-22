@@ -60,6 +60,7 @@ test('reserva con cobertura, recordatorio neutro, agenda y cancelación que avis
   // La secretaria lo ve en la agenda, con su cobertura.
   const turnoUrl = await page.getByRole('link', { name: /Ver, cambiar o cancelar/ }).getAttribute('href');
   await page.goto(`/d/${slug}/panel`);
+  await page.getByLabel('Ver como').selectOption('secretaria');
   await expect(page.getByText('Agenda de la secretaría')).toBeVisible();
   await page.getByRole('group', { name: 'Días de la semana' }).getByRole('button', { name: /^Mié/ }).click();
   await page.getByRole('button', { name: new RegExp(`${horaElegida} Paciente Prueba`) }).click();
@@ -79,9 +80,10 @@ test('reserva con cobertura, recordatorio neutro, agenda y cancelación que avis
   expect(decodeURIComponent(wa!)).toContain(`se liberó un turno en Consultorio Norte para mañana a las ${horaElegida} h`);
 });
 
-test('ficha administrativa sin datos clínicos, historia clínica solo como vista previa y accesos registrados', async ({ page }) => {
+test('la secretaría ve solo la ficha administrativa; la agenda no guarda datos clínicos y los accesos se registran', async ({ page }) => {
   const slug = await crearDemo(page, 'Consultorio Sur');
   await page.goto(`/d/${slug}/panel`);
+  await page.getByLabel('Ver como').selectOption('secretaria');
   await page.getByRole('tab', { name: 'Pacientes' }).click();
   await page.getByRole('button', { name: /Ana Martínez/ }).click();
   const ficha = page.getByRole('dialog');
@@ -89,13 +91,11 @@ test('ficha administrativa sin datos clínicos, historia clínica solo como vist
   await expect(ficha.getByLabel('Cobertura')).toBeVisible();
   await expect(ficha.getByText(/Diagnóstico|Alergias/)).toHaveCount(0);
 
-  await ficha.getByRole('button', { name: 'Historia clínica · Próximamente' }).click();
-  await expect(ficha).toContainText('Vista previa con datos ficticios · Módulo próximamente');
-  await expect(ficha).toContainText('Evoluciones');
-  await expect(ficha.locator('textarea, input')).toHaveCount(0); // no se puede editar
+  await ficha.getByRole('button', { name: 'Historia clínica' }).click();
+  await expect(ficha).toContainText('Solo el profesional ve la historia clínica');
   await page.getByRole('button', { name: 'Cerrar' }).click();
 
-  // CON-08: lo guardado en el dispositivo no tiene ningún campo clínico.
+  // CON-08: la agenda guardada en el dispositivo no tiene ningún campo clínico (el módulo clínico va en otra clave).
   const guardado = await page.evaluate((s) => localStorage.getItem(`acmias:demo:${s}`), slug);
   expect(guardado).toBeTruthy();
   expect(guardado!).not.toMatch(CLINICO);
@@ -108,6 +108,7 @@ test('ficha administrativa sin datos clínicos, historia clínica solo como vist
 test('la secretaria da un sobreturno y bloquea vacaciones', async ({ page }) => {
   const slug = await crearDemo(page, 'Consultorio Este');
   await page.goto(`/d/${slug}/panel`);
+  await page.getByLabel('Ver como').selectOption('secretaria');
   await page.getByRole('button', { name: 'Nuevo turno' }).click();
   const hoja = page.getByRole('dialog');
   await hoja.getByLabel('Profesional').selectOption({ label: 'Laura Méndez' });

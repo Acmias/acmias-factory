@@ -14,6 +14,7 @@ import { PanelBarberia } from '@/components/barberia/PanelBarberia';
 import { SitioBarberia } from '@/components/barberia/SitioBarberia';
 import { ReservaConsultorio } from '@/components/consultorio/ReservaConsultorio';
 import { SitioConsultorio } from '@/components/consultorio/SitioConsultorio';
+import { PanelConsultorio } from '@/components/consultorio/clinico/PanelConsultorio';
 import { CatalogoFer } from '@/components/ferreteria/CatalogoFer';
 import { PanelFerreteria } from '@/components/ferreteria/PanelFerreteria';
 import { SitioFer } from '@/components/ferreteria/SitioFer';
@@ -46,7 +47,7 @@ const VISTAS = {
   repuestos: { cliente: Catalogo, panel: PanelRepuestos, sitio: SitioRepuestos },
   tienda: { cliente: Tienda, panel: PanelTienda, sitio: SitioTienda },
   barberia: { cliente: Reserva, panel: PanelBarberia, sitio: SitioBarberia },
-  consultorio: { cliente: ReservaConsultorio, panel: PanelBarberia, sitio: SitioConsultorio },
+  consultorio: { cliente: ReservaConsultorio, panel: PanelConsultorio, sitio: SitioConsultorio },
   ferreteria: { cliente: CatalogoFer, panel: PanelFerreteria, sitio: SitioFer },
   autos: { cliente: Concesionaria, panel: PanelAutos, sitio: SitioAutos },
   inmobiliaria: { cliente: CatalogoInmo, panel: PanelInmo, sitio: SitioInmo },

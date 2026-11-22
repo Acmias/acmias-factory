@@ -5,7 +5,7 @@ import { Icono } from '@/components/Icono';
 import { AvisoDemo, DemoNoEncontrada } from '@/components/demo/useDemoCargada';
 import { useDemoBarberia } from '@/components/barberia/useBarberia';
 import { enlaceWhatsApp, formatoPrecio, soloDigitos } from '@/lib/utiles';
-import { FOTO_PORTADA_CONS } from '@/lib/rubros/consultorio/datos-ejemplo';
+import { FOTO_PORTADA_CONS, SOLO_PANEL } from '@/lib/rubros/consultorio/datos-ejemplo';
 import { hhmm, nombreDiaSemana } from '@/lib/rubros/barberia/agenda';
 import { nombreProf } from './ReservaConsultorio';
 
@@ -62,7 +62,7 @@ export function SitioConsultorio({ slug }: { slug: string }) {
         <div className="s-in">
           <h2>Consultas y valores particulares</h2>
           <ul className="sb-servicios">
-            {estado.servicios.map((s) => (
+            {estado.servicios.filter((s) => !SOLO_PANEL.includes(s.id)).map((s) => (
               <li key={s.id}>
                 <span><strong>{s.nombre}</strong><small>{s.duracion} min · {s.descripcion}</small></span>
                 <strong>{formatoPrecio(s.precio, config.moneda)}</strong>

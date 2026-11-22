@@ -127,6 +127,36 @@ export function useEstadoDe<T>(slug: string) {
 }
 
 
+/** Crea el estado de una clave propia de la demo (p. ej. `{slug}:clinico`) si todavía no existe. */
+export function iniciarEstadoDe<T>(clave: string, crear: () => T) {
+  if (leer<T | null>(claveEstado(clave), null)) return null;
+  try {
+    escribir(claveEstado(clave), crear());
+    return null;
+  } catch (e) {
+    return e instanceof Error ? e.message : 'No se pudo guardar.';
+  }
+}
+
+/** Reemplaza el estado de una clave propia (p. ej. cuando cambió la versión de sus datos de ejemplo). */
+export function reemplazarEstadoDe<T>(clave: string, valor: T) {
+  try {
+    escribir(claveEstado(clave), valor);
+    return null;
+  } catch (e) {
+    return e instanceof Error ? e.message : 'No se pudo guardar.';
+  }
+}
+
+/** Datos aparte de la demo (módulo clínico del consultorio): se borran con la demo y al volver a los datos de ejemplo. */
+const EXTRAS = [':clinico'];
+function borrarExtras(slug: string) {
+  for (const x of EXTRAS) {
+    window.localStorage.removeItem(claveEstado(slug + x));
+    cache.delete(claveEstado(slug + x));
+  }
+}
+
 export function useEstado(slug: string) {
   return useEstadoDe<DemoEstado>(slug);
 }
@@ -155,12 +185,14 @@ export function actualizarDemo(slug: string, cambios: Partial<DemoConfig>) {
 export function borrarDemo(slug: string) {
   const demos = leer<DemoConfig[]>(CLAVE_DEMOS, []);
   escribir(CLAVE_DEMOS, demos.filter((d) => d.slug !== slug));
+  borrarExtras(slug);
   window.localStorage.removeItem(claveEstado(slug));
   cache.delete(claveEstado(slug));
   window.dispatchEvent(new CustomEvent(EVENTO));
 }
 
 export function reiniciarDatos(slug: string, moneda: string, rubro: DemoConfig['rubro'] = 'restaurante', variante?: DemoConfig['variante']) {
+  borrarExtras(slug);
   escribir(claveEstado(slug), estadoInicial({ moneda, rubro, variante } as DemoConfig));
 }
 

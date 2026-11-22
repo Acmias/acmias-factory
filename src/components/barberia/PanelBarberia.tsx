@@ -44,14 +44,24 @@ type Pestana = 'agenda' | 'disenos' | 'precios' | 'opiniones' | 'espera' | 'clie
 const iniciales = (n: string) => n.split(' ').map((x) => x[0]).slice(0, 2).join('').toUpperCase();
 const origen = () => (typeof window !== 'undefined' ? window.location.origin : '');
 
-export function PanelBarberia({ slug }: { slug: string }) {
+/** Pestañas y pantallas que suma otro rubro sobre la agenda (consultorio clínico, BRD 15). */
+export interface ExtrasPanel {
+  pestanas: { id: string; nombre: string }[];
+  inicial?: string;
+  subtitulo?: string;
+  barra?: React.ReactNode;
+  flotante?: React.ReactNode;
+  render: (id: string, irA: (id: string) => void) => React.ReactNode | null;
+}
+
+export function PanelBarberia({ slug, extras }: { slug: string; extras?: ExtrasPanel }) {
   const { config, estado, actualizar, estilo, listo } = useDemoBarberia(slug);
-  const [pestana, setPestana] = useState<Pestana>('agenda');
+  const [elegida, setPestana] = useState<string>(extras?.inicial ?? 'agenda');
   if (!config || !estado) return <DemoNoEncontrada listo={listo} />;
   const cons = estado.rubro === 'consultorio';
   const enEspera = estado.espera.filter((x) => !x.avisado).length;
   const avisar = estado.espera.filter((x) => x.avisado).length;
-  const PESTANAS: { id: Pestana; nombre: string }[] = [
+  const BASE: { id: Pestana; nombre: string }[] = [
     { id: 'agenda', nombre: 'Agenda' },
     ...(estado.rubro === 'unas' ? [{ id: 'disenos' as Pestana, nombre: 'Diseños' }, { id: 'precios' as Pestana, nombre: 'Precios y seña' }, { id: 'opiniones' as Pestana, nombre: 'Opiniones' }] : []),
     { id: 'espera', nombre: `Lista de espera${enEspera + avisar ? ` (${enEspera + avisar})` : ''}` },
@@ -60,8 +70,11 @@ export function PanelBarberia({ slug }: { slug: string }) {
     { id: 'metricas', nombre: 'Métricas' },
     { id: 'ajustes', nombre: 'Ajustes' },
   ];
+  const PESTANAS = extras?.pestanas ?? BASE;
+  const pestana = PESTANAS.some((t) => t.id === elegida) ? elegida : PESTANAS[0].id;
+  const propio = extras?.render(pestana, setPestana);
   return (
-    <div className="duenio" style={estilo}>
+    <div className={`duenio${extras ? ' cl' : ''}`} style={estilo}>
       <AvisoDemo texto={cons ? 'Demo con datos ficticios' : 'Servicios, profesionales y turnos de ejemplo'} />
       <header className="duenio-top">
         <div className="duenio-top-in">
@@ -74,7 +87,7 @@ export function PanelBarberia({ slug }: { slug: string }) {
             )}
             <div style={{ minWidth: 0 }}>
               <div style={{ fontWeight: 800, fontSize: 18, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{config.negocio}</div>
-              <div style={{ fontSize: 13, opacity: 0.9 }}>{cons ? 'Agenda de la secretaría' : estado.rubro === 'unas' ? 'Panel del salón' : 'Panel del dueño'}</div>
+              <div style={{ fontSize: 13, opacity: 0.9 }}>{extras?.subtitulo ? extras.subtitulo : cons ? 'Agenda de la secretaría' : estado.rubro === 'unas' ? 'Panel del salón' : 'Panel del dueño'}</div>
             </div>
           </div>
           <nav style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }} aria-label="Accesos">
@@ -83,6 +96,7 @@ export function PanelBarberia({ slug }: { slug: string }) {
           </nav>
         </div>
       </header>
+      {extras?.barra}
       <div className="d-tabs" role="tablist" aria-label="Secciones del panel">
         {PESTANAS.map((t) => (
           <button key={t.id} role="tab" id={`tab-${t.id}`} aria-controls={`pan-${t.id}`} aria-selected={pestana === t.id} className="d-tab" onClick={() => setPestana(t.id)}>
@@ -91,6 +105,8 @@ export function PanelBarberia({ slug }: { slug: string }) {
         ))}
       </div>
       <main className="d-main" role="tabpanel" id={`pan-${pestana}`} aria-labelledby={`tab-${pestana}`}>
+        {propio}
+        {!propio && <>
         {pestana === 'agenda' && <Agenda config={config} estado={estado} actualizar={actualizar} slug={slug} />}
         {pestana === 'disenos' && <Disenos config={config} estado={estado} actualizar={actualizar} slug={slug} />}
         {pestana === 'precios' && <PanelPrecios estado={estado} actualizar={actualizar} moneda={config.moneda} />}
@@ -100,7 +116,9 @@ export function PanelBarberia({ slug }: { slug: string }) {
         {pestana === 'bloqueos' && <Bloqueos estado={estado} actualizar={actualizar} />}
         {pestana === 'metricas' && <Metricas estado={estado} moneda={config.moneda} />}
         {pestana === 'ajustes' && <Ajustes slug={slug} config={config} estado={estado} actualizar={actualizar} />}
+        </>}
       </main>
+      {extras?.flotante}
     </div>
   );
 }
