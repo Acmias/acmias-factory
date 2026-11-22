@@ -6,7 +6,7 @@ import { AvisoDemo, DemoNoEncontrada } from '@/components/demo/useDemoCargada';
 import { Horarios, ListaEspera, Listo } from '@/components/barberia/Reserva';
 import { useAhora, useDemoBarberia, type ActualizarAgenda } from '@/components/barberia/useBarberia';
 import { formatoPrecio, soloDigitos } from '@/lib/utiles';
-import { FOTO_PORTADA_CONS, PARTICULAR } from '@/lib/rubros/consultorio/datos-ejemplo';
+import { FOTO_PORTADA_CONS, PARTICULAR, SOLO_PANEL } from '@/lib/rubros/consultorio/datos-ejemplo';
 import { abierto, claveDia, deClave, diaCorto, fechaCorta, hora, huecos, inicioDia, nombreDia, proximoConLugar, sumarDias, type Hueco } from '@/lib/rubros/barberia/agenda';
 import { reservar } from '@/lib/rubros/barberia/logica';
 import type { EstadoAgenda, Profesional, Servicio, Turno } from '@/lib/rubros/barberia/tipos';
@@ -56,7 +56,7 @@ export function ReservaConsultorio({ slug }: { slug: string }) {
 
   const coberturas = estado.coberturas ?? [];
   const profs = estado.profesionales.filter((x) => !cobertura || x.coberturas?.includes(cobertura));
-  const desde = (x: Profesional) => Math.min(...estado.servicios.filter((s) => x.servicios.includes(s.id)).map((s) => s.precio));
+  const desde = (x: Profesional) => Math.min(...estado.servicios.filter((s) => x.servicios.includes(s.id) && !SOLO_PANEL.includes(s.id)).map((s) => s.precio));
   const manana = libres.filter((h) => new Date(h.inicio).getHours() < 13);
   const tarde = libres.filter((h) => new Date(h.inicio).getHours() >= 13);
   const proximo = servicio && profId && diaElegido && !libres.length ? proximoConLugar(estado, servicio, profId, sumarDias(diaElegido, 1), ahora) : null;
@@ -124,7 +124,7 @@ export function ReservaConsultorio({ slug }: { slug: string }) {
             <h2 id="t-cons" className="bar-h2">{nombreProf(prof)} <span>{prof.especialidad}</span></h2>
             <h3 className="bar-h3">Tipo de consulta</h3>
             <ul className="bar-servicios">
-              {estado.servicios.filter((s) => prof.servicios.includes(s.id)).map((s, i) => (
+              {estado.servicios.filter((s) => prof.servicios.includes(s.id) && !SOLO_PANEL.includes(s.id)).map((s, i) => (
                 <li key={s.id} style={{ '--i': i } as React.CSSProperties}>
                   <button type="button" className="bar-serv" aria-pressed={s.id === servicioId} aria-label={`${s.nombre}, ${s.duracion} minutos`} onClick={() => { setServicioId(s.id); setDia(null); setHueco(null); }}>
                     <span className="bar-serv-dur"><strong>{s.duracion}</strong>min</span>
